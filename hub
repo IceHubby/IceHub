@@ -1,0 +1,1384 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local player = Players.LocalPlayer
+
+-- === CONFIG ===
+local COOLDOWN_TIME = 1 -- seconds
+local DEBUG = true -- Enable debug output
+local TREASURE_COOLDOWN = 0.1 -- Cooldown between treasure actions
+local highestWorld = 11
+local maxPetEquip = player.MaxPets.Value
+local craftTypes = {"Gold", "Diamond", "Void"}
+local currentCraftTypeIndex = 1 -- Default to "Gold"
+
+-- === HELPER FUNCTION TO MAKE BUTTONS CIRCULAR ===
+local function makeButtonCircular(button)
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0.5, 0)
+    uiCorner.Parent = button
+    return uiCorner
+end
+
+-- === DEBUG LOG FUNCTION ===
+local function debugLog(message)
+    if DEBUG then
+        print("[PetSelectorGui] " .. message)
+    end
+end
+
+-- === GET VALID PET NAMES ===
+local function getValidPets()
+    debugLog("Fetching valid pets from ReplicatedStorage.Pets")
+    local petsFolder = ReplicatedStorage:WaitForChild("Pets", 10)
+    if not petsFolder then
+        debugLog("Error: Pets folder not found in ReplicatedStorage after 10 seconds")
+        return {}
+    end
+
+    local validPetSet = {}
+    local validPets = {}
+    local eggCount = 0
+
+    for i = 1, 50 do
+        local egg = petsFolder:FindFirstChild("Egg" .. i)
+        if egg then
+            eggCount = eggCount + 1
+            debugLog("Found Egg" .. i .. " with " .. #egg:GetChildren() .. " pets")
+            for _, pet in ipairs(egg:GetChildren()) do
+                local petName = pet.Name
+                debugLog("Found pet in Egg" .. i .. ": " .. petName)
+                if not validPetSet[petName] then
+                    validPetSet[petName] = true
+                    table.insert(validPets, petName)
+                    debugLog("Added valid pet: " .. petName)
+                end
+            end
+        else
+            debugLog("Egg" .. i .. " not found")
+        end
+    end
+
+    if eggCount == 0 then
+        debugLog("Warning: No Egg folders (Egg1 to Egg50) found in Pets")
+    end
+    debugLog("Found " .. #validPets .. " unique valid pets")
+    return validPets
+end
+
+-- === GET VALID PET NAMES FROM ALL FOLDERS (OPTIMIZED) ===
+local function getValidEquipPets()
+    local petsFolder = ReplicatedStorage:WaitForChild("Pets", 10)
+    if not petsFolder then
+        warn("Error: Pets folder not found in ReplicatedStorage after 10 seconds")
+        return {}
+    end
+
+    local validPetSet = {}
+    local validPets = {}
+
+    for _, folder in ipairs(petsFolder:GetChildren()) do
+        if folder:IsA("Folder") then
+            local pets = folder:GetChildren()
+            for i = 1, #pets do
+                local petName = pets[i].Name
+                if not validPetSet[petName] then
+                    validPetSet[petName] = true
+                    validPets[#validPets + 1] = petName
+                end
+            end
+        end
+    end
+
+    return validPets
+end
+
+
+
+-- === UI SETUP ===
+debugLog("Setting up UI")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PetSelectorGui"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 400, 0, 600)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -300)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 8)
+uiCorner.Parent = mainFrame
+
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Thickness = 3
+uiStroke.Color = Color3.fromRGB(100, 100, 100)
+uiStroke.Parent = mainFrame
+
+local tabFrame = Instance.new("Frame")
+tabFrame.Size = UDim2.new(0, 100, 1, 0)
+tabFrame.Position = UDim2.new(0, 0, 0, 0)
+tabFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+tabFrame.BorderSizePixel = 0
+tabFrame.Parent = mainFrame
+
+local opTab = Instance.new("TextButton")
+opTab.Size = UDim2.new(0, 80, 0, 40)
+opTab.Position = UDim2.new(0, 10, 0, 10)
+opTab.Text = "Op"
+opTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+opTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+opTab.Parent = tabFrame
+makeButtonCircular(opTab)
+
+local craftTab = Instance.new("TextButton")
+craftTab.Size = UDim2.new(0, 80, 0, 40)
+craftTab.Position = UDim2.new(0, 10, 0, 110)
+craftTab.Text = "Craft"
+craftTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+craftTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+craftTab.Parent = tabFrame
+makeButtonCircular(craftTab)
+
+local equipTab = Instance.new("TextButton")
+equipTab.Size = UDim2.new(0, 80, 0, 40)
+equipTab.Position = UDim2.new(0, 10, 0, 160)
+equipTab.Text = "Equip"
+equipTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+equipTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+equipTab.Parent = tabFrame
+makeButtonCircular(equipTab)
+
+local tradeTab = Instance.new("TextButton")
+tradeTab.Size = UDim2.new(0, 80, 0, 40)
+tradeTab.Position = UDim2.new(0, 10, 0, 210)
+tradeTab.Text = "Trading "
+tradeTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+tradeTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+tradeTab.Parent = tabFrame
+makeButtonCircular(tradeTab)
+
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, -100, 1, 0)
+contentFrame.Position = UDim2.new(0, 100, 0, 0)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+-- === CLOSE BUTTON ===
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -35, 0, 5)
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Text = "X"
+closeButton.Parent = mainFrame
+makeButtonCircular(closeButton)
+closeButton.MouseButton1Click:Connect(function()
+    screenGui.Enabled = false
+    debugLog("UI closed")
+end)
+
+-- === TABS ===
+local opContent = Instance.new("Frame")
+opContent.Size = UDim2.new(1, 0, 1, 0)
+opContent.BackgroundTransparency = 1
+opContent.Visible = true
+opContent.Parent = contentFrame
+
+local statsContent = Instance.new("Frame")
+statsContent.Size = UDim2.new(1, 0, 1, 0)
+statsContent.BackgroundTransparency = 1
+statsContent.Visible = false
+statsContent.Parent = contentFrame
+
+local craftContent = Instance.new("Frame")
+craftContent.Size = UDim2.new(1, 0, 1, 0)
+craftContent.BackgroundTransparency = 1
+craftContent.Visible = false
+craftContent.Parent = contentFrame
+
+local equipContent = Instance.new("Frame")
+equipContent.Size = UDim2.new(1, 0, 1, 0)
+equipContent.BackgroundTransparency = 1
+equipContent.Visible = false
+equipContent.Parent = contentFrame
+
+local statsTab = Instance.new("TextButton")
+statsTab.Size = UDim2.new(0, 80, 0, 40)
+statsTab.Position = UDim2.new(0, 10, 0, 60)
+statsTab.Text = "Stats"
+statsTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+statsTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+statsTab.Parent = tabFrame
+makeButtonCircular(statsTab)
+
+opTab.MouseButton1Click:Connect(function()
+    opContent.Visible = true
+    statsContent.Visible = false
+    craftContent.Visible = false
+    equipContent.Visible = false
+    debugLog("Switched to Op tab")
+end)
+
+statsTab.MouseButton1Click:Connect(function()
+    opContent.Visible = false
+    statsContent.Visible = true
+    craftContent.Visible = false
+    equipContent.Visible = false
+    debugLog("Switched to Stats tab")
+end)
+
+craftTab.MouseButton1Click:Connect(function()
+    opContent.Visible = false
+    statsContent.Visible = false
+    craftContent.Visible = true
+    equipContent.Visible = false
+    debugLog("Switched to Craft tab")
+    updatePetSelectionList()
+    updateInventoryList()
+end)
+
+equipTab.MouseButton1Click:Connect(function()
+    opContent.Visible = false
+    statsContent.Visible = false
+    craftContent.Visible = false
+    equipContent.Visible = true
+    debugLog("Switched to Equip tab")
+end)
+
+local u1 = game:GetService("Players").LocalPlayer
+local v2 = script.Parent
+local u3 = false
+local u4 = game.ReplicatedStorage:WaitForChild("Sounds"):WaitForChild("OpenFrameSound")
+local function teleportPart(targetPart) --[[Anonymous function at line 8]]
+    --[[
+    Upvalues:
+        [1] = u3
+        [2] = u1
+        [3] = u4
+    --]]
+    if not u3 then
+        u3 = true
+        local v5 = u1.Character
+        if v5 and u1:FindFirstChild("CurrentWorld") then
+            local v6 = "World" .. u1.CurrentWorld.Value
+            local v7 = workspace:WaitForChild(v6):WaitForChild(targetPart)
+            local v8 = v7 and v5:FindFirstChild("HumanoidRootPart")
+            if v8 then
+                v8.CFrame = v7.CFrame + Vector3.new(0, 5, 0)
+                u4:Play()
+            end
+        end
+        task.delay(1, function() --[[Anonymous function at line 28]]
+            --[[
+            Upvalues:
+                [1] = u3
+            --]]
+            u3 = false
+        end)
+    end
+end
+
+-- === AUTO DIG FUNCTION ===
+local autoDigButton = Instance.new("TextButton")
+autoDigButton.Size = UDim2.new(0, 280, 0, 40)
+autoDigButton.Position = UDim2.new(0, 10, 0, 450)
+autoDigButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+autoDigButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoDigButton.Text = "Start Auto Dig in Current World"
+autoDigButton.Parent = opContent
+makeButtonCircular(autoDigButton) -- Added missing circular styling
+
+local autoDigActive = false
+
+local function startAutoDig()
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("AutoDigEvent"):FireServer()
+autoDigActive = true
+
+    teleportPart("MineBorder")
+
+    autoDigButton.Text = "Stop AutoDig in Current World"
+    autoDigButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+    debugLog("AutoDig started")
+end
+
+
+local function stopAutoDig()
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("AutoDigEvent"):FireServer()
+    autoDigActive = false
+    autoDigButton.Text = "Start AutoDig in Current World"
+    autoDigButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    debugLog("AutoDig stopped")
+end
+
+autoDigButton.MouseButton1Click:Connect(function()
+if not autoDigActive then
+    startAutoDig()
+     else  
+    stopAutoDig()
+end
+end)
+
+
+-- === INFINITE MONEY FUNCTION ===
+local infMoneyButton = Instance.new("TextButton")
+infMoneyButton.Size = UDim2.new(0, 280, 0, 40)
+infMoneyButton.Position = UDim2.new(0, 10, 0, 350)
+infMoneyButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+infMoneyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+infMoneyButton.Text = "Start Infinite Money"
+infMoneyButton.Parent = opContent
+makeButtonCircular(infMoneyButton) -- Added missing circular styling
+
+local infMoneyActive = false
+local spinPrizeRemote = ReplicatedStorage:WaitForChild("Remotes", 5) and ReplicatedStorage.Remotes:FindFirstChild("SpinPrizeEvent")
+
+local infMoneyCoroutine
+local function startInfiniteMoney()
+    if not spinPrizeRemote then
+        debugLog("Error: SpinPrizeEvent remote not found")
+        feedbackLabel.Text = "Error: SpinPrizeEvent not found."
+        return
+    end
+    infMoneyActive = true
+    infMoneyButton.Text = "Stop Infinite Money"
+    infMoneyButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+
+    infMoneyCoroutine = coroutine.create(function()
+        while infMoneyActive do
+            for i = 1, 10 do
+                if not infMoneyActive then break end -- Added check to stop loop
+                spinPrizeRemote:FireServer(8)
+            end
+            wait(0.3)
+        end
+    end)
+    coroutine.resume(infMoneyCoroutine)
+    debugLog("Infinite Money started")
+end
+
+local function stopInfiniteMoney()
+    infMoneyActive = false
+    infMoneyButton.Text = "Start Infinite Money"
+    infMoneyButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    debugLog("Infinite Money stopped")
+end
+
+infMoneyButton.MouseButton1Click:Connect(function()
+    if infMoneyActive then
+        stopInfiniteMoney()
+        feedbackLabel.Text = "Infinite Money Stopped."
+    else
+        startInfiniteMoney()
+        feedbackLabel.Text = "Infinite Money Started!"
+    end
+end)
+
+-- === INFINITE TREASURE FUNCTION ===
+local infTreasureButton = Instance.new("TextButton")
+infTreasureButton.Size = UDim2.new(0, 280, 0, 40)
+infTreasureButton.Position = UDim2.new(0, 10, 0, 400)
+infTreasureButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+infTreasureButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+infTreasureButton.Text = "Collect All Treasure"
+infTreasureButton.Parent = opContent
+makeButtonCircular(infTreasureButton)
+
+local infTreasureActive = false
+local treasureRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TreasureEvent")
+local worldTeleportRemote = ReplicatedStorage:WaitForChild("Remotes", 5) and ReplicatedStorage.Remotes:FindFirstChild("WorldTeleportEvent")
+local previousGems = player:FindFirstChild("Gems") and player.Gems.Value
+local unchangedCount = 0
+
+local function startCollectAllTreasure()
+    if not treasureRemote or not worldTeleportRemote then
+        debugLog("Error: Required remotes not found")
+        feedbackLabel.Text = "Error: Missing remotes."
+        return
+    end
+
+    local treasureFolder = Workspace:FindFirstChild("Treasure")
+    if not treasureFolder then
+        feedbackLabel.Text = "Error: Treasure folder not found."
+        return
+    end
+
+    worldTeleportRemote:FireServer(highestWorld)
+    teleportPart("SurfacePart")
+    wait(0.5)
+
+    infTreasureActive = true
+    infTreasureButton.Text = "Stop Collecting Treasure"
+    infTreasureButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+
+    coroutine.wrap(function()
+        while infTreasureActive do
+            local currentGems = player.Gems.Value
+            if currentGems == previousGems then
+                unchangedCount = unchangedCount + 1
+            else
+                unchangedCount = 0
+            end
+            previousGems = currentGems
+
+            if unchangedCount >= 10 then
+                debugLog("Gems value unchanged. Stopping collection.")
+                infTreasureActive = false
+                infTreasureButton.Text = "Collect All Treasure"
+                infTreasureButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+                feedbackLabel.Text = "Treasure collection stopped: No gem changes."
+                break
+            end
+
+            local treasures = treasureFolder:GetChildren()
+            for _, treasure in ipairs(treasures) do
+                if not infTreasureActive then break end
+                treasureRemote:FireServer(treasure.Name)
+                wait(TREASURE_COOLDOWN)
+            end
+        end
+
+        if infTreasureActive then
+            infTreasureActive = false
+            infTreasureButton.Text = "Collect All Treasure"
+            infTreasureButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+            feedbackLabel.Text = "Treasure collection stopped."
+        end
+    end)
+end
+
+infTreasureButton.MouseButton1Click:Connect(function()
+    if infTreasureActive then
+        infTreasureActive = false
+            infTreasureButton.Text = "Collect All Treasure"
+            infTreasureButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    else
+        startCollectAllTreasure()
+    end
+end)
+
+-- === STATS TAB CONTENT ===
+local function createStatLabel(name, index)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 25)
+    label.Position = UDim2.new(0, 10, 0, 10 + (index - 1) * 30)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 20
+    label.Name = name .. "Label"
+    label.Parent = statsContent
+    return label
+end
+
+local stats = {
+    "Gems",
+    "CurrentWorld",
+    "Cash",
+    "Multiplier",
+    "BestWorld",
+    "Spins",
+    "TotalDepth",
+    "AutoDig"
+}
+
+local statLabels = {}
+for i, statName in ipairs(stats) do
+    statLabels[statName] = createStatLabel(statName, i)
+end
+
+spawn(function()
+    while true do
+        for statName, label in pairs(statLabels) do
+            local value = player:FindFirstChild(statName)
+            if value then
+                label.Text = statName .. ": " .. tostring(value.Value)
+            else
+                label.Text = statName .. ": N/A"
+            end
+        end
+        wait(1)
+    end
+end)
+
+-- === PET CAGE OP TAB CONTENT ===
+local petLabel = Instance.new("TextLabel")
+petLabel.Size = UDim2.new(0, 280, 0, 20)
+petLabel.Position = UDim2.new(0, 10, 0, 10)
+petLabel.BackgroundTransparency = 1
+petLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+petLabel.Text = "Enter Pet Name:"
+petLabel.Parent = opContent
+
+local petInput = Instance.new("TextBox")
+petInput.Size = UDim2.new(0, 280, 0, 30)
+petInput.Position = UDim2.new(0, 10, 0, 35)
+petInput.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+petInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+petInput.PlaceholderText = "e.g., Planet Seal"
+petInput.Text = ""
+petInput.Parent = opContent
+petInput.ClearTextOnFocus = false
+
+local suggestionFrame = Instance.new("ScrollingFrame")
+suggestionFrame.Size = UDim2.new(0, 280, 0, 100)
+suggestionFrame.Position = UDim2.new(0, 10, 0, 65)
+suggestionFrame.BackgroundTransparency = 1
+suggestionFrame.ScrollBarThickness = 6
+suggestionFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+suggestionFrame.ClipsDescendants = true
+suggestionFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+suggestionFrame.Parent = opContent
+
+local uiListLayout = Instance.new("UIListLayout")
+uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+uiListLayout.Padding = UDim.new(0, 2)
+uiListLayout.Parent = suggestionFrame
+
+local function updateSuggestions(text)
+    for _, child in ipairs(suggestionFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    local validPets = getValidPets()
+    for _, name in ipairs(validPets) do
+        if text == "" or string.find(string.lower(name), string.lower(text), 1, true) then
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, 0, 0, 25)
+            button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.Text = name
+            button.Parent = suggestionFrame
+            makeButtonCircular(button)
+
+            button.MouseButton1Click:Connect(function()
+                petInput.Text = name
+                updateSuggestions("")
+            end)
+        end
+    end
+
+    suggestionFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y)
+end
+
+petInput:GetPropertyChangedSignal("Text"):Connect(function()
+    updateSuggestions(petInput.Text)
+end)
+
+local teleportLabel = Instance.new("TextLabel")
+teleportLabel.Size = UDim2.new(0, 280, 0, 20)
+teleportLabel.Position = UDim2.new(0, 10, 0, 500)
+teleportLabel.BackgroundTransparency = 1
+teleportLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportLabel.Text = "Enter World:"
+teleportLabel.Parent = opContent
+
+local teleportInput = Instance.new("TextBox")
+teleportInput.Size = UDim2.new(0, 280, 0, 30)
+teleportInput.Position = UDim2.new(0, 10, 0, 525)
+teleportInput.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+teleportInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportInput.PlaceholderText = "e.g., 1"
+teleportInput.Text = ""
+teleportInput.Parent = opContent
+
+local teleportButton = Instance.new("TextButton")
+teleportButton.Size = UDim2.new(0, 80, 0, 40)
+teleportButton.Position = UDim2.new(0.5, -40, 0, 560)
+teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportButton.Text = "Teleport"
+teleportButton.Parent = opContent
+makeButtonCircular(teleportButton)
+
+local quantityLabel = Instance.new("TextLabel")
+quantityLabel.Size = UDim2.new(0, 280, 0, 20)
+quantityLabel.Position = UDim2.new(0, 10, 0, 170)
+quantityLabel.BackgroundTransparency = 1
+quantityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+quantityLabel.Text = "Enter Quantity:"
+quantityLabel.Parent = opContent
+
+local quantityInput = Instance.new("TextBox")
+quantityInput.Size = UDim2.new(0, 280, 0, 30)
+quantityInput.Position = UDim2.new(0, 10, 0, 195)
+quantityInput.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+quantityInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+quantityInput.PlaceholderText = "e.g., 1"
+quantityInput.Text = ""
+quantityInput.Parent = opContent
+
+local submitButton = Instance.new("TextButton")
+submitButton.Size = UDim2.new(0, 80, 0, 40)
+submitButton.Position = UDim2.new(0.5, -40, 0, 235)
+submitButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+submitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+submitButton.Text = "Submit"
+submitButton.Parent = opContent
+makeButtonCircular(submitButton)
+
+local feedbackLabel = Instance.new("TextLabel")
+feedbackLabel.Size = UDim2.new(0, 280, 0, 40)
+feedbackLabel.Position = UDim2.new(0, 10, 0, 275)
+feedbackLabel.BackgroundTransparency = 1
+feedbackLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+feedbackLabel.Text = ""
+feedbackLabel.TextWrapped = true
+feedbackLabel.TextScaled = true
+feedbackLabel.TextXAlignment = Enum.TextXAlignment.Center
+feedbackLabel.Parent = opContent
+
+local lastUsed = 0
+
+teleportButton.MouseButton1Click:Connect(function()
+    local currentTime = tick()
+    if currentTime - lastUsed < COOLDOWN_TIME then
+        feedbackLabel.Text = "Please wait before teleporting again."
+        debugLog("Submit on cooldown")
+        return
+    end
+
+    local worldNumber = tonumber(teleportInput.Text)
+
+    if not worldNumber or worldNumber <= 0 then
+        feedbackLabel.Text = "Please enter a valid number (greater than 0)."
+        debugLog("Invalid worldNumber")
+        return
+    end
+
+    local worldTeleportRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("WorldTeleportEvent")
+
+    if not worldTeleportRemote then
+        feedbackLabel.Text = "Error: worldTeleportRemote not found."
+        debugLog("Error: worldTeleportRemote remote not found")
+        return
+    end
+
+    local success, errorMessage = pcall(function()
+        worldTeleportRemote:FireServer(worldNumber)
+        wait(0.2)
+        teleportPart("SurfacePart")
+    end)
+
+    if success then
+        lastUsed = tick()
+        feedbackLabel.Text = "Teleported to World " .. tostring(worldNumber)" !"
+        debugLog("Successfully teleported to World " .. tostring(worldNumber))
+    else
+        feedbackLabel.Text = "Failed to teleport: " .. tostring(errorMessage)
+        debugLog("Failed to fire worldTeleportRemote: " .. tostring(errorMessage))
+    end
+    print(worldNumber)
+end)
+
+submitButton.MouseButton1Click:Connect(function()
+    local currentTime = tick()
+    if currentTime - lastUsed < COOLDOWN_TIME then
+        feedbackLabel.Text = "Please wait before submitting again."
+        debugLog("Submit on cooldown")
+        return
+    end
+
+    local petName = petInput.Text
+    local quantity = tonumber(quantityInput.Text)
+    local validPets = getValidPets()
+
+    if not petName or petName == "" then
+        feedbackLabel.Text = "Please enter a pet name."
+        debugLog("No pet name entered")
+        return
+    end
+
+    if not quantity or quantity <= 0 or quantity <= 201 then
+        feedbackLabel.Text = "Please enter a valid quantity (greater than 0 and below 201)."
+        debugLog("Invalid quantity")
+        return
+    end
+
+    local petExists = false
+    for _, validPet in pairs(validPets) do
+        if string.lower(validPet) == string.lower(petName) then
+            petExists = true
+            petName = validPet
+            break
+        end
+    end
+
+    if not petExists then
+        feedbackLabel.Text = "Pet '" .. petName .. "' does not exist."
+        debugLog("Pet does not exist: " .. petName)
+        return
+    end
+
+    local remotepetcage = ReplicatedStorage.Remotes:FindFirstChild("PetCageEvent")
+    if not remotepetcage then
+        feedbackLabel.Text = "Error: PetCageEvent not found."
+        debugLog("Error: PetCageEvent remote not found")
+        return
+    end
+
+    local success, errorMessage = pcall(function()
+        for i = 1, quantity do
+            remotepetcage:FireServer(petName)
+        end
+    end)
+
+    if success then
+        lastUsed = tick()
+        feedbackLabel.Text = "Requested " .. quantity .. " " .. petName .. "(s)!"
+        debugLog("Successfully requested " .. quantity .. " " .. petName)
+    else
+        feedbackLabel.Text = "Failed to request pets: " .. tostring(errorMessage)
+        debugLog("Failed to fire PetCageEvent: " .. tostring(errorMessage))
+    end
+end)
+
+-- === EQUIP TAB CONTENT ===
+
+local equipPetLabel = Instance.new("TextLabel")
+equipPetLabel.Size = UDim2.new(0, 280, 0, 20)
+equipPetLabel.Position = UDim2.new(0, 10, 0, 10)
+equipPetLabel.BackgroundTransparency = 1
+equipPetLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+equipPetLabel.Text = "Enter Pet Name:"
+equipPetLabel.Parent = equipContent
+
+local equipPetInput = Instance.new("TextBox")
+equipPetInput.Size = UDim2.new(0, 280, 0, 30)
+equipPetInput.Position = UDim2.new(0, 10, 0, 35)
+equipPetInput.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+equipPetInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+equipPetInput.PlaceholderText = "e.g., Void Planet Seal"
+equipPetInput.Text = ""
+equipPetInput.Parent = equipContent
+equipPetInput.ClearTextOnFocus = false
+
+local equipSuggestionFrame = Instance.new("ScrollingFrame")
+equipSuggestionFrame.Size = UDim2.new(0, 280, 0, 100)
+equipSuggestionFrame.Position = UDim2.new(0, 10, 0, 65)
+equipSuggestionFrame.BackgroundTransparency = 1
+equipSuggestionFrame.ScrollBarThickness = 6
+equipSuggestionFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+equipSuggestionFrame.ClipsDescendants = true
+equipSuggestionFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+equipSuggestionFrame.Parent = equipContent
+
+local uiListLayout = Instance.new("UIListLayout")
+uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+uiListLayout.Padding = UDim.new(0, 2)
+uiListLayout.Parent = equipSuggestionFrame
+
+local equipquantityLabel = Instance.new("TextLabel")
+equipquantityLabel.Size = UDim2.new(0, 280, 0, 20)
+equipquantityLabel.Position = UDim2.new(0, 10, 0, 170)
+equipquantityLabel.BackgroundTransparency = 1
+equipquantityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+equipquantityLabel.Text = "Enter Quantity (Max ".. maxPetEquip .. " WILL UNEQUIP ACTIVE PETS!)"
+equipquantityLabel.Parent = equipContent
+
+local equipquantityInput = Instance.new("TextBox")
+equipquantityInput.Size = UDim2.new(0, 280, 0, 30)
+equipquantityInput.Position = UDim2.new(0, 10, 0, 195)
+equipquantityInput.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+equipquantityInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+equipquantityInput.PlaceholderText = "e.g., 1"
+equipquantityInput.Text = ""
+equipquantityInput.Parent = equipContent
+
+local equipsubmitButton = Instance.new("TextButton")
+equipsubmitButton.Size = UDim2.new(0, 80, 0, 40)
+equipsubmitButton.Position = UDim2.new(0.5, -90, 0, 235)
+equipsubmitButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+equipsubmitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+equipsubmitButton.Text = "Submit"
+equipsubmitButton.Parent = equipContent
+makeButtonCircular(equipsubmitButton)
+
+local unequipAllButton = Instance.new("TextButton")
+unequipAllButton.Size = UDim2.new(0, 80, 0, 40)
+unequipAllButton.Position = UDim2.new(0.5, 10, 0, 235)
+unequipAllButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+unequipAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+unequipAllButton.Text = "UnequipAll"
+unequipAllButton.Parent = equipContent
+makeButtonCircular(unequipAllButton)
+
+local equipfeedbackLabel = Instance.new("TextLabel")
+equipfeedbackLabel.Size = UDim2.new(0, 280, 0, 40)
+equipfeedbackLabel.Position = UDim2.new(0, 10, 0, 275)
+equipfeedbackLabel.BackgroundTransparency = 1
+equipfeedbackLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+equipfeedbackLabel.Text = ""
+equipfeedbackLabel.TextWrapped = true
+equipfeedbackLabel.TextScaled = true
+equipfeedbackLabel.TextXAlignment = Enum.TextXAlignment.Center
+equipfeedbackLabel.Parent = equipContent
+
+local function EquipUpdateSuggestions(text)
+    for _, child in ipairs(equipSuggestionFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    local validPets = getValidEquipPets()
+    for _, name in ipairs(validPets) do
+        if text == "" or string.find(string.lower(name), string.lower(text), 1, true) then
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, 0, 0, 25)
+            button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.Text = name
+            button.Parent = equipSuggestionFrame
+            makeButtonCircular(button)
+
+            button.MouseButton1Click:Connect(function()
+                equipPetInput.Text = name
+                EquipUpdateSuggestions("")
+            end)
+        end
+    end
+
+    equipSuggestionFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y)
+end
+
+equipPetInput:GetPropertyChangedSignal("Text"):Connect(function()
+    EquipUpdateSuggestions(equipPetInput.Text)
+end)
+
+unequipAllButton.MouseButton1Click:Connect(function()
+
+     local currentTime = tick()
+
+    if currentTime - lastUsed < COOLDOWN_TIME then
+        equipfeedbackLabel.Text = "Please wait before submitting again."
+        debugLog("Submit on cooldown")
+        return
+    end
+
+    local success, errorMessage = pcall(function()
+               game:GetService("ReplicatedStorage"):WaitForChild("PetRemotes"):WaitForChild("UnequipAll"):FireServer()
+    end)
+
+    if success then
+        lastUsed = tick()
+    end
+
+    end)
+
+equipsubmitButton.MouseButton1Click:Connect(function()
+    local currentTime = tick()
+    if currentTime - lastUsed < COOLDOWN_TIME then
+        equipfeedbackLabel.Text = "Please wait before submitting again."
+        debugLog("Submit on cooldown")
+        return
+    end
+
+    local petName = equipPetInput.Text
+    local quantity = tonumber(equipquantityInput.Text)
+    local validPets = getValidEquipPets()
+
+    if not petName or petName == "" then
+        equipfeedbackLabel.Text = "Please enter a pet name."
+        debugLog("No pet name entered")
+        return
+    end
+
+    if not quantity or quantity <= 0 or quantity >= maxPetEquip + 1 then
+        equipfeedbackLabel.Text = "Please enter a valid quantity (greater than 0 and below )" .. (maxPetEquip + 1) "."
+        debugLog("Invalid quantity")
+        return
+    end
+
+    local petExists = false
+    for _, validPet in pairs(validPets) do
+        if string.lower(validPet) == string.lower(petName) then
+            petExists = true
+            petName = validPet
+            break
+        end
+    end
+
+    if not petExists then
+        equipfeedbackLabel.Text = "Pet '" .. petName .. "' does not exist."
+        debugLog("Pet does not exist: " .. petName)
+        return
+    end
+
+    local remoteEquip = game:GetService("ReplicatedStorage"):WaitForChild("PetRemotes"):WaitForChild("EquipPet")
+    if not remoteEquip then
+        equipfeedbackLabel.Text = "Error: PetCageEvent not found."
+        debugLog("Error: PetCageEvent remote not found")
+        return
+    end
+
+    local success, errorMessage = pcall(function()
+    wait(0.1)
+        for i = 1, quantity do
+            remoteEquip:InvokeServer(petName)
+        end
+    end)
+
+    if success then
+        lastUsed = tick()
+        equipfeedbackLabel.Text = "Requested to equip " .. quantity .. " " .. petName .. "(s)!"
+        debugLog("Successfully equipped " .. quantity .. " " .. petName)
+    else
+        equipfeedbackLabel.Text = "Failed to equip pets: " .. tostring(errorMessage)
+        debugLog("Failed to fire PetEquipEvent: " .. tostring(errorMessage))
+    end
+end)
+
+-- === CRAFT TAB CONTENT ===
+local craftPetLabel = Instance.new("TextLabel")
+craftPetLabel.Size = UDim2.new(0, 280, 0, 20)
+craftPetLabel.Position = UDim2.new(0, 10, 0, 10)
+craftPetLabel.BackgroundTransparency = 1
+craftPetLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+craftPetLabel.Text = "Select Pet to Craft:"
+craftPetLabel.Parent = craftContent
+
+local selectedPetName = nil
+local craftPetSelectButton = Instance.new("TextButton")
+craftPetSelectButton.Size = UDim2.new(0, 280, 0, 30)
+craftPetSelectButton.Position = UDim2.new(0, 10, 0, 35)
+craftPetSelectButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+craftPetSelectButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+craftPetSelectButton.Text = "Select Pet"
+craftPetSelectButton.Parent = craftContent
+makeButtonCircular(craftPetSelectButton)
+
+local craftPetSelectFrame = Instance.new("ScrollingFrame")
+craftPetSelectFrame.Size = UDim2.new(0, 280, 0, 80)
+craftPetSelectFrame.Position = UDim2.new(0, 10, 0, 65)
+craftPetSelectFrame.BackgroundTransparency = 1
+craftPetSelectFrame.ScrollBarThickness = 6
+craftPetSelectFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+craftPetSelectFrame.ClipsDescendants = true
+craftPetSelectFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+craftPetSelectFrame.Visible = false
+craftPetSelectFrame.Parent = craftContent
+
+local craftPetSelectListLayout = Instance.new("UIListLayout")
+craftPetSelectListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+craftPetSelectListLayout.Padding = UDim.new(0, 2)
+craftPetSelectListLayout.Parent = craftPetSelectFrame
+
+local function updatePetSelectionList()
+    debugLog("Updating pet selection list (from player inventory)")
+    for _, child in ipairs(craftPetSelectFrame:GetChildren()) do
+        if child:IsA("TextButton") or child:IsA("TextLabel") then
+            child:Destroy()
+        end
+    end
+
+    local petsFolder = player:FindFirstChild("Pets")
+    if not petsFolder then
+        debugLog("Player has no Pets folder.")
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 0, 25)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Text = "No pets in inventory."
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = craftPetSelectFrame
+        craftPetSelectFrame.CanvasSize = UDim2.new(0, 0, 0, craftPetSelectListLayout.AbsoluteContentSize.Y)
+        return
+    end
+
+    local petCounts = {}
+    local targetPrefix = craftTypes[currentCraftTypeIndex]
+    for _, pet in ipairs(petsFolder:GetChildren()) do
+        local petName = pet.Name
+        local hasGoldPrefix = petName:match("^Gold ") or petName:match("^Gold") or petName:match("Gold$") or petName:match(" Gold$") or petName:match("_Gold$") or petName:match("^Gold_") or petName:match("Gold-") or petName:match("-Gold")
+        local hasDiamondPrefix = petName:match("^Diamond ") or petName:match("^Diamond") or petName:match("Diamond$") or petName:match(" Diamond$") or petName:match("_Diamond$") or petName:match("^Diamond_") or petName:match("Diamond-") or petName:match("-Diamond")
+        local hasVoidPrefix = petName:match("^Void ") or petName:match("^Void") or petName:match("Void$") or petName:match(" Void$") or petName:match("_Void$") or petName:match("^Void_") or petName:match("Void-") or petName:match("-Void")
+
+        if targetPrefix == "Void" and hasDiamondPrefix then
+            petCounts[petName] = (petCounts[petName] or 0) + 1
+            debugLog("Pet " .. petName .. " matches Void criteria (Diamond prefix)")
+        elseif targetPrefix == "Diamond" and hasGoldPrefix then
+            petCounts[petName] = (petCounts[petName] or 0) + 1
+            debugLog("Pet " .. petName .. " matches Diamond criteria (Gold prefix)")
+        elseif targetPrefix == "Gold" and not (hasGoldPrefix or hasDiamondPrefix or hasVoidPrefix) then
+            petCounts[petName] = (petCounts[petName] or 0) + 1
+            debugLog("Pet " .. petName .. " matches Gold criteria (no Gold or Diamond prefix)")
+        end
+    end
+
+    local petList = {}
+    for name, count in pairs(petCounts) do
+        table.insert(petList, {Name = name, Count = count})
+    end
+
+    if #petList == 0 then
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 0, 25)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Text = "No suitable pets for " .. targetPrefix .. " crafting."
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = craftPetSelectFrame
+        debugLog("No pets matched the criteria for " .. targetPrefix)
+    else
+        table.sort(petList, function(a, b) return a.Name < b.Name end)
+        for _, pet in ipairs(petList) do
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, 0, 0, 25)
+            button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.Text = pet.Name .. " x" .. pet.Count
+            button.Parent = craftPetSelectFrame
+            makeButtonCircular(button)
+
+            button.MouseButton1Click:Connect(function()
+                selectedPetName = pet.Name
+                craftPetSelectButton.Text = pet.Name .. " x" .. pet.Count
+                craftPetSelectFrame.Visible = false
+                debugLog("Selected pet: " .. pet.Name)
+            end)
+        end
+    end
+
+    craftPetSelectFrame.CanvasSize = UDim2.new(0, 0, 0, craftPetSelectListLayout.AbsoluteContentSize.Y)
+    debugLog("Pet selection list updated with " .. #craftPetSelectFrame:GetChildren() .. " items")
+end
+
+craftPetSelectButton.MouseButton1Click:Connect(function()
+    craftPetSelectFrame.Visible = not craftPetSelectFrame.Visible
+    if craftPetSelectFrame.Visible then
+        updatePetSelectionList()
+    end
+    debugLog("Toggled pet selection frame visibility: " .. tostring(craftPetSelectFrame.Visible))
+end)
+
+-- Craft Type Selection
+local craftTypeLabel = Instance.new("TextLabel")
+craftTypeLabel.Size = UDim2.new(0, 280, 0, 20)
+craftTypeLabel.Position = UDim2.new(0, 10, 0, 150)
+craftTypeLabel.BackgroundTransparency = 1
+craftTypeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+craftTypeLabel.Text = "Craft Type:"
+craftTypeLabel.Parent = craftContent
+
+local craftTypeButton = Instance.new("TextButton")
+craftTypeButton.Size = UDim2.new(0, 280, 0, 30)
+craftTypeButton.Position = UDim2.new(0, 10, 0, 175)
+craftTypeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+craftTypeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+craftTypeButton.Text = "Gold"
+craftTypeButton.Parent = craftContent
+makeButtonCircular(craftTypeButton)
+
+craftTypeButton.MouseButton1Click:Connect(function()
+    currentCraftTypeIndex = (currentCraftTypeIndex % #craftTypes) + 1
+    craftTypeButton.Text = craftTypes[currentCraftTypeIndex]
+    selectedPetName = nil
+    craftPetSelectButton.Text = "Select Pet"
+    updatePetSelectionList()
+    updateInventoryList()
+    debugLog("Craft type changed to: " .. craftTypes[currentCraftTypeIndex])
+    
+end)
+
+-- Percentage Selection
+local percentageLabel = Instance.new("TextLabel")
+percentageLabel.Size = UDim2.new(0, 280, 0, 20)
+percentageLabel.Position = UDim2.new(0, 10, 0, 210)
+percentageLabel.BackgroundTransparency = 1
+percentageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+percentageLabel.Text = "Craft Percentage:"
+percentageLabel.Parent = craftContent
+
+local percentageButton = Instance.new("TextButton")
+percentageButton.Size = UDim2.new(0, 280, 0, 30)
+percentageButton.Position = UDim2.new(0, 10, 0, 235)
+percentageButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+percentageButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+percentageButton.Text = "20%"
+percentageButton.Parent = craftContent
+makeButtonCircular(percentageButton)
+
+local percentageSelectFrame = Instance.new("ScrollingFrame")
+percentageSelectFrame.Size = UDim2.new(0, 280, 0, 80)
+percentageSelectFrame.Position = UDim2.new(0, 10, 0, 265)
+percentageSelectFrame.BackgroundTransparency = 1
+percentageSelectFrame.ScrollBarThickness = 6
+percentageSelectFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+percentageSelectFrame.ClipsDescendants = true
+percentageSelectFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+percentageSelectFrame.Visible = false
+percentageSelectFrame.Parent = craftContent
+
+local percentageListLayout = Instance.new("UIListLayout")
+percentageListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+percentageListLayout.Padding = UDim.new(0, 2)
+percentageListLayout.Parent = percentageSelectFrame
+
+local percentages = {"20%", "40%", "60%", "80%", "100%"}
+local selectedPercentage = 0.20 -- Default to 20%
+percentageButton.MouseButton1Click:Connect(function()
+    percentageSelectFrame.Visible = not percentageSelectFrame.Visible
+    if percentageSelectFrame.Visible then
+        for _, child in ipairs(percentageSelectFrame:GetChildren()) do
+            if child:IsA("TextButton") or child:IsA("TextLabel") then
+                child:Destroy()
+            end
+        end
+        for _, percentage in ipairs(percentages) do
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, 0, 0, 25)
+            button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.Text = percentage
+            button.Parent = percentageSelectFrame
+            makeButtonCircular(button)
+
+            button.MouseButton1Click:Connect(function()
+                selectedPercentage = tonumber(percentage:match("(%d+)")) / 100
+                percentageButton.Text = percentage
+                percentageSelectFrame.Visible = false
+                debugLog("Selected percentage: " .. percentage)
+            end)
+        end
+    end
+    percentageSelectFrame.CanvasSize = UDim2.new(0, 0, 0, percentageListLayout.AbsoluteContentSize.Y)
+    debugLog("Toggled percentage selection frame visibility: " .. tostring(percentageSelectFrame.Visible))
+end)
+
+-- Inventory List
+local inventoryLabel = Instance.new("TextLabel")
+inventoryLabel.Size = UDim2.new(0, 280, 0, 20)
+inventoryLabel.Position = UDim2.new(0, 10, 0, 350)
+inventoryLabel.BackgroundTransparency = 1
+inventoryLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+inventoryLabel.Text = "Available Pets for Crafting:"
+inventoryLabel.Parent = craftContent
+
+local inventoryFrame = Instance.new("ScrollingFrame")
+inventoryFrame.Size = UDim2.new(0, 280, 0, 80)
+inventoryFrame.Position = UDim2.new(0, 10, 0, 375)
+inventoryFrame.BackgroundTransparency = 1
+inventoryFrame.ScrollBarThickness = 6
+inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+inventoryFrame.ClipsDescendants = true
+inventoryFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+inventoryFrame.Parent = craftContent
+
+local inventoryListLayout = Instance.new("UIListLayout")
+inventoryListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+inventoryListLayout.Padding = UDim.new(0, 2)
+inventoryListLayout.Parent = inventoryFrame
+
+local function updateInventoryList()
+    debugLog("Updating inventory list for craft type: " .. (craftTypes[currentCraftTypeIndex] or "Unknown"))
+    for _, child in ipairs(inventoryFrame:GetChildren()) do
+        if child:IsA("TextLabel") then
+            child:Destroy()
+        end
+    end
+
+    local petsFolder = player:WaitForChild("Pets", 5)
+    if not petsFolder then
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 0, 25)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Text = "No pets in inventory."
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = inventoryFrame
+        inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, inventoryListLayout.AbsoluteContentSize.Y)
+        debugLog("No pets folder found")
+        return
+    end
+
+    local petCounts = {}
+    local targetPrefix = craftTypes[currentCraftTypeIndex]
+
+    for _, pet in ipairs(petsFolder:GetChildren()) do
+        local petName = pet.Name
+        debugLog("Checking inventory pet: " .. petName)
+        local hasGoldPrefix = petName:match("^Gold ") or petName:match("^Gold") or petName:match("Gold$") or petName:match(" Gold$") or petName:match("_Gold$") or petName:match("^Gold_") or petName:match("Gold-") or petName:match("-Gold")
+        local hasDiamondPrefix = petName:match("^Diamond ") or petName:match("^Diamond") or petName:match("Diamond$") or petName:match(" Diamond$") or petName:match("_Diamond$") or petName:match("^Diamond_") or petName:match("Diamond-") or petName:match("-Diamond")
+
+        if targetPrefix == "Void" and hasDiamondPrefix and petName ~= selectedPetName then
+            petCounts[petName] = (petCounts[petName] or 0) + 1
+            debugLog("Inventory pet " .. petName .. " matches Void criteria (Diamond prefix)")
+        elseif targetPrefix == "Diamond" and hasGoldPrefix and petName ~= selectedPetName then
+            petCounts[petName] = (petCounts[petName] or 0) + 1
+            debugLog("Inventory pet " .. petName .. " matches Diamond criteria (Gold prefix)")
+        elseif targetPrefix == "Gold" and not (hasGoldPrefix or hasDiamondPrefix) and petName ~= selectedPetName then
+            petCounts[petName] = (petCounts[petName] or 0) + 1
+            debugLog("Inventory pet " .. petName .. " matches Gold criteria (no Gold or Diamond prefix)")
+        else
+            debugLog("Inventory pet " .. petName .. " does not match criteria for " .. targetPrefix .. " or is selected")
+        end
+    end
+
+    local petList = {}
+    for petName, count in pairs(petCounts) do
+        table.insert(petList, {Name = petName, Count = count})
+    end
+
+    if #petList == 0 then
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 0, 25)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Text = "No suitable pets for " .. targetPrefix .. " crafting."
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = inventoryFrame
+        debugLog("No suitable pets for " .. targetPrefix)
+    else
+        table.sort(petList, function(a, b) return a.Name < b.Name end)
+        for _, pet in ipairs(petList) do
+            debugLog("Displaying inventory pet: " .. pet.Name .. " x" .. pet.Count)
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, 0, 0, 25)
+            label.BackgroundTransparency = 1
+            label.TextColor3 = Color3.fromRGB(255, 255, 255)
+            label.Text = pet.Name .. " x" .. pet.Count
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.Parent = inventoryFrame
+        end
+        debugLog("Displayed " .. #petList .. " pets in inventory")
+    end
+
+    inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, inventoryListLayout.AbsoluteContentSize.Y)
+    debugLog("Inventory list updated with " .. #inventoryFrame:GetChildren() .. " items")
+end
+
+local petsFolder = player:WaitForChild("Pets", 5)
+if petsFolder then
+    petsFolder.ChildAdded:Connect(function()
+        updateInventoryList()
+        updatePetSelectionList() -- Update selection list too
+        debugLog("Pet added to inventory")
+    end)
+    petsFolder.ChildRemoved:Connect(function()
+        updateInventoryList()
+        updatePetSelectionList() -- Update selection list too
+        debugLog("Pet removed from inventory")
+    end)
+else
+    debugLog("Warning: Pets folder not found on initial load")
+end
+
+local craftQuantityLabel = Instance.new("TextLabel")
+craftQuantityLabel.Size = UDim2.new(0, 280, 0, 20)
+craftQuantityLabel.Position = UDim2.new(0, 10, 0, 460)
+craftQuantityLabel.BackgroundTransparency = 1
+craftQuantityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+craftQuantityLabel.Text = "Enter Quantity to Craft:"
+craftQuantityLabel.Parent = craftContent
+
+local craftQuantityInput = Instance.new("TextBox")
+craftQuantityInput.Size = UDim2.new(0, 280, 0, 30)
+craftQuantityInput.Position = UDim2.new(0, 10, 0, 485)
+craftQuantityInput.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+craftQuantityInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+craftQuantityInput.PlaceholderText = "e.g., 100"
+craftQuantityInput.Text = ""
+craftQuantityInput.Parent = craftContent
+
+local craftSubmitButton = Instance.new("TextButton")
+craftSubmitButton.Size = UDim2.new(0, 80, 0, 40)
+craftSubmitButton.Position = UDim2.new(0.5, -40, 0, 520)
+craftSubmitButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+craftSubmitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+craftSubmitButton.Text = "Craft"
+craftSubmitButton.Parent = craftContent
+makeButtonCircular(craftSubmitButton)
+
+local craftFeedbackLabel = Instance.new("TextLabel")
+craftFeedbackLabel.Size = UDim2.new(0, 280, 0, 40)
+craftFeedbackLabel.Position = UDim2.new(0, 10, 0, 565)
+craftFeedbackLabel.BackgroundTransparency = 1
+craftFeedbackLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+craftFeedbackLabel.Text = ""
+craftFeedbackLabel.TextWrapped = true
+craftFeedbackLabel.TextScaled = true
+craftFeedbackLabel.TextXAlignment = Enum.TextXAlignment.Center
+craftFeedbackLabel.Parent = craftContent
+
+local craftLastUsed = 0
+craftSubmitButton.MouseButton1Click:Connect(function()
+    local currentTime = tick()
+    if currentTime - craftLastUsed < COOLDOWN_TIME then
+        craftFeedbackLabel.Text = "Please wait before crafting again."
+        debugLog("Craft on cooldown")
+        return
+    end
+
+    if not selectedPetName then
+        craftFeedbackLabel.Text = "Please select a pet."
+        debugLog("No pet selected")
+        return
+    end
+
+    local quantity = tonumber(craftQuantityInput.Text)
+    if not quantity or quantity <= 0 then
+        craftFeedbackLabel.Text = "Please enter a valid quantity (greater than 0)."
+        debugLog("Invalid craft quantity")
+        return
+    end
+
+    local craftType = craftTypes[currentCraftTypeIndex]
+    local finalPetName
+    if craftType == "Void" then
+        finalPetName = selectedPetName:match("^Diamond (.+)$") or selectedPetName:match("^Diamond(.+)$") or selectedPetName:match("(.+) Diamond$") or selectedPetName:match("(.+)_Diamond$") or selectedPetName:match("(.+)-Diamond$") or selectedPetName
+        finalPetName = "Diamond " .. finalPetName
+    elseif craftType == "Gold" then
+        finalPetName = selectedPetName
+    elseif craftType == "Diamond" then
+        finalPetName = "Gold " .. (selectedPetName:match("^Gold (.+)$") or selectedPetName:match("^Gold(.+)$") or selectedPetName:match("(.+) Gold$") or selectedPetName:match("(.+)_Gold$") or selectedPetName:match("(.+)-Gold$") or selectedPetName)
+    end
+
+    local craftMachine = craftType .. "PetCraftEvent"
+    local petRemotes = ReplicatedStorage:WaitForChild("PetRemotes", 5)
+    local remote = petRemotes:FindFirstChild(craftMachine)
+    if not remote then
+        craftFeedbackLabel.Text = "Error: PetCraftEvent not found."
+        debugLog("Error: PetCraftEvent remote not found")
+        return
+    end
+
+    local neededpercentage = selectedPercentage * 100
+    local success, errorMessage = pcall(function()
+        for i = 1, quantity do
+            local args = {finalPetName, neededpercentage}
+            remote:FireServer(unpack(args))
+            wait(0.6)
+        end
+    end)
+
+    if success then
+        craftLastUsed = tick()
+        craftFeedbackLabel.Text = "Crafted " .. quantity .. " " .. finalPetName .. "(s) with " .. (selectedPercentage * 100) .. "%!"
+        debugLog("Crafted " .. quantity .. " " .. finalPetName .. " with value " .. adjustedValue)
+        selectedPetName = nil
+        craftPetSelectButton.Text = "Select Pet"
+        updateInventoryList()
+        updatePetSelectionList()
+    else
+        craftFeedbackLabel.Text = "Failed to craft: " .. tostring(errorMessage)
+        debugLog("Failed to fire PetCraftEvent: " .. tostring(errorMessage))
+    end
+end)
+
+-- Initial setup
+spawn(function()
+    debugLog("Initializing UI")
+    updateInventoryList()
+    updatePetSelectionList()
+end)
