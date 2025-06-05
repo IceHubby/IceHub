@@ -824,12 +824,30 @@ uiListLayout.Parent = tradeSuggestionFrame
 
 local tradesubmitButton = Instance.new("TextButton")
 tradesubmitButton.Size = UDim2.new(0, 80, 0, 40)
-tradesubmitButton.Position = UDim2.new(0.5, -90, 0, 235)
+tradesubmitButton.Position = UDim2.new(0.5, -120, 0, 235)
 tradesubmitButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
 tradesubmitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-tradesubmitButton.Text = "Submit"
+tradesubmitButton.Text = "Trade Player"
 tradesubmitButton.Parent = tradeContent
 makeButtonCircular(tradesubmitButton)
+
+local tradeEndButton = Instance.new("TextButton")
+tradeEndButton.Size = UDim2.new(0, 80, 0, 40)
+tradeEndButton.Position = UDim2.new(0.5, -70, 0, 235)
+tradeEndButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+tradeEndButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+tradeEndButton.Text = "Trade Player"
+tradeEndButton.Parent = tradeContent
+makeButtonCircular(tradeEndButton)
+
+local tradeConfirmButton = Instance.new("TextButton")
+tradeConfirmButton.Size = UDim2.new(0, 80, 0, 40)
+tradeConfirmButton.Position = UDim2.new(0.5, -20, 0, 235)
+tradeConfirmButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+tradeConfirmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+tradeConfirmButton.Text = "Trade Player"
+tradeConfirmButton.Parent = tradeContent
+makeButtonCircular(tradeConfirmButton)
 
 local tradingfeedbackLabel = Instance.new("TextLabel")
 tradingfeedbackLabel.Size = UDim2.new(0, 280, 0, 40)
