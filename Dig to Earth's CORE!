@@ -778,7 +778,7 @@ tradeLabel.Size = UDim2.new(0, 280, 0, 20)
 tradeLabel.Position = UDim2.new(0, 10, 0, 10)
 tradeLabel.BackgroundTransparency = 1
 tradeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-tradeLabel.Text = "Enter Pet Name:"
+tradeLabel.Text = "Enter Player Name:"
 tradeLabel.Parent = tradeContent
 
 local tradeInput = Instance.new("TextBox")
