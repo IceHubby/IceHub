@@ -865,6 +865,74 @@ tradeInput:GetPropertyChangedSignal("Text"):Connect(function()
     PlayerUpdateSuggestions(tradeInput.Text)
 end)
 
+tradesubmitButton.MouseButton1Click:Connect(function()
+    local currentTime = tick()
+    if currentTime - lastUsed < COOLDOWN_TIME then
+        tradingfeedbackLabel.Text = "Please wait before submitting again."
+        debugLog("Submit on cooldown")
+        return
+    end
+
+    local playerName = tradeInput.Text
+    local validPlayers = getValidPlayers()
+
+    if not playerName or playerName == "" then
+        tradingfeedbackLabel.Text = "Please enter a Player name."
+        debugLog("No player name entered")
+        return
+    end
+
+    local playerExists = false
+    for _, validPlayer in pairs(validPlayers) do
+        if string.lower(validPlayer) == string.lower(playerName) then
+            playerExists = true
+            playerName = validPlayer
+            break
+        end
+    end
+
+    if not playerExists then
+        tradingfeedbackLabel.Text = "Player '" .. playerName .. "' does not exist."
+        debugLog("Player does not exist: " .. playerName)
+        return
+    end
+
+    local targetPlayer = Players:FindFirstChild(playerName)
+    if not targetPlayer then
+        tradingfeedbackLabel.Text = "Player not currently in game."
+        debugLog("Player not found: " .. playerName)
+        return
+    end
+
+    --  Check if player is already trading
+    if targetPlayer:FindFirstChild("IsTrading") and targetPlayer.IsTrading.Value == true then
+        tradingfeedbackLabel.Text = playerName .. " is already trading."
+        debugLog(playerName .. " is already in a trade.")
+        return
+    end
+
+    local remoteSendTrade = game:GetService("ReplicatedStorage"):WaitForChild("TradeRemotes"):FindFirstChild("TradeRequestAcceptEvent")
+    if not remoteSendTrade then
+        tradingfeedbackLabel.Text = "Error: Trade remote not found."
+        debugLog("TradeRequestAcceptEvent not found")
+        return
+    end
+
+    local success, errorMessage = pcall(function()
+        remoteSendTrade:FireServer(targetPlayer)
+    end)
+
+    if success then
+        lastUsed = tick()
+        tradingfeedbackLabel.Text = "Trade request sent to " .. playerName .. "."
+        debugLog("Trade request sent to " .. playerName)
+    else
+        tradingfeedbackLabel.Text = "Failed to send trade: " .. tostring(errorMessage)
+        debugLog("Failed to fire trade remote: " .. tostring(errorMessage))
+    end
+end)
+
+
 -- === EQUIP TAB CONTENT ===
 local equipPetLabel = Instance.new("TextLabel")
 equipPetLabel.Size = UDim2.new(0, 280, 0, 20)
