@@ -744,7 +744,7 @@ submitButton.MouseButton1Click:Connect(function()
         return
     end
 
-    if not quantity or quantity <= 0 or quantity <= 201 then
+    if not quantity or quantity <= 0 or quantity >= 201 then
         feedbackLabel.Text = "Please enter a valid quantity (greater than 0 and below 201)."
         debugLog("Invalid quantity")
         return
