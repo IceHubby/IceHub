@@ -828,7 +828,7 @@ equipquantityLabel.Size = UDim2.new(0, 280, 0, 20)
 equipquantityLabel.Position = UDim2.new(0, 10, 0, 170)
 equipquantityLabel.BackgroundTransparency = 1
 equipquantityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-equipquantityLabel.Text = "Enter Quantity (Max ".. maxPetEquip .. " !)"
+equipquantityLabel.Text = "Enter Quantity (Max ".. maxPetEquip .. ")"
 equipquantityLabel.Parent = equipContent
 
 local equipquantityInput = Instance.new("TextBox")
