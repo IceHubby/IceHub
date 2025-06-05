@@ -122,6 +122,7 @@ uiStroke.Thickness = 3
 uiStroke.Color = Color3.fromRGB(100, 100, 100)
 uiStroke.Parent = mainFrame
 
+-- === TABS ===
 local tabFrame = Instance.new("Frame")
 tabFrame.Size = UDim2.new(0, 100, 1, 0)
 tabFrame.Position = UDim2.new(0, 0, 0, 0)
@@ -164,6 +165,15 @@ tradeTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 tradeTab.TextColor3 = Color3.fromRGB(255, 255, 255)
 tradeTab.Parent = tabFrame
 makeButtonCircular(tradeTab)
+
+local statsTab = Instance.new("TextButton")
+statsTab.Size = UDim2.new(0, 80, 0, 40)
+statsTab.Position = UDim2.new(0, 10, 0, 60)
+statsTab.Text = "Stats"
+statsTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+statsTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+statsTab.Parent = tabFrame
+makeButtonCircular(statsTab)
 
 local contentFrame = Instance.new("Frame")
 contentFrame.Size = UDim2.new(1, -100, 1, 0)
@@ -209,15 +219,6 @@ equipContent.Size = UDim2.new(1, 0, 1, 0)
 equipContent.BackgroundTransparency = 1
 equipContent.Visible = false
 equipContent.Parent = contentFrame
-
-local statsTab = Instance.new("TextButton")
-statsTab.Size = UDim2.new(0, 80, 0, 40)
-statsTab.Position = UDim2.new(0, 10, 0, 60)
-statsTab.Text = "Stats"
-statsTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-statsTab.TextColor3 = Color3.fromRGB(255, 255, 255)
-statsTab.Parent = tabFrame
-makeButtonCircular(statsTab)
 
 opTab.MouseButton1Click:Connect(function()
     opContent.Visible = true
