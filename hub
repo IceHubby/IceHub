@@ -1,3 +1,3 @@
-if game.PlaceId == 123456789 then
+if game.PlaceId == 81440632616906 then
     loadstring(game:HttpGet("https://raw.githubusercontent.com/IceHubby/IceHub/refs/heads/main/Dig to Earth's CORE!"))()
 end
