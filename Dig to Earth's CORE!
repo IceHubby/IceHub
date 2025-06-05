@@ -844,6 +844,38 @@ tradingfeedbackLabel.TextScaled = true
 tradingfeedbackLabel.TextXAlignment = Enum.TextXAlignment.Center
 tradingfeedbackLabel.Parent = tradeContent
 
+local function PlayerUpdateSuggestions(text)
+    for _, child in ipairs(tradeSuggestionFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    local validPlayers = getValidPlayers()
+    for _, name in ipairs(validPlayers) do
+        if text == "" or string.find(string.lower(name), string.lower(text), 1, true) then
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, 0, 0, 25)
+            button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.Text = name
+            button.Parent = tradeSuggestionFrame
+            makeButtonCircular(button)
+
+            button.MouseButton1Click:Connect(function()
+                tradeInput.Text = name
+                PlayerUpdateSuggestions("")
+            end)
+        end
+    end
+
+    tradeSuggestionFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y)
+end
+
+tradeInput:GetPropertyChangedSignal("Text"):Connect(function()
+    PlayerUpdateSuggestions(tradeInput.Text)
+end)
+
 -- === EQUIP TAB CONTENT ===
 local equipPetLabel = Instance.new("TextLabel")
 equipPetLabel.Size = UDim2.new(0, 280, 0, 20)
