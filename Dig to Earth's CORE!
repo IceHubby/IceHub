@@ -822,23 +822,6 @@ uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 uiListLayout.Padding = UDim.new(0, 2)
 uiListLayout.Parent = tradeSuggestionFrame
 
-local equipquantityLabel = Instance.new("TextLabel")
-equipquantityLabel.Size = UDim2.new(0, 280, 0, 20)
-equipquantityLabel.Position = UDim2.new(0, 10, 0, 170)
-equipquantityLabel.BackgroundTransparency = 1
-equipquantityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-equipquantityLabel.Text = "Enter Quantity (Max ".. maxPetEquip .. ")"
-equipquantityLabel.Parent = tradeContent
-
-local equipquantityInput = Instance.new("TextBox")
-equipquantityInput.Size = UDim2.new(0, 280, 0, 30)
-equipquantityInput.Position = UDim2.new(0, 10, 0, 195)
-equipquantityInput.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-equipquantityInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-equipquantityInput.PlaceholderText = "e.g., 1"
-equipquantityInput.Text = ""
-equipquantityInput.Parent = tradeContent
-
 local tradesubmitButton = Instance.new("TextButton")
 tradesubmitButton.Size = UDim2.new(0, 80, 0, 40)
 tradesubmitButton.Position = UDim2.new(0.5, -90, 0, 235)
