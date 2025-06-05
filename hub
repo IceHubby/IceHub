@@ -289,7 +289,7 @@ equipTab.MouseButton1Click:Connect(function()
     debugLog("Switched to Equip tab")
 end)
 
-equipTab.MouseButton1Click:Connect(function()
+tradeTab.MouseButton1Click:Connect(function()
     opContent.Visible = false
     statsContent.Visible = false
     craftContent.Visible = false
