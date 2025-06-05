@@ -808,7 +808,7 @@ uiListLayout.Parent = tradeSuggestionFrame
 
 local tradesubmitButton = Instance.new("TextButton")
 tradesubmitButton.Size = UDim2.new(0, 80, 0, 40)
-tradesubmitButton.Position = UDim2.new(0.5, -120, 0, 235)
+tradesubmitButton.Position = UDim2.new(0.5, -60, 0, 235)
 tradesubmitButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
 tradesubmitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 tradesubmitButton.Text = "Trade Player"
@@ -817,7 +817,7 @@ makeButtonCircular(tradesubmitButton)
 
 local tradeEndButton = Instance.new("TextButton")
 tradeEndButton.Size = UDim2.new(0, 80, 0, 40)
-tradeEndButton.Position = UDim2.new(0.5, -100, 0, 235)
+tradeEndButton.Position = UDim2.new(0.5, -120, 0, 235)
 tradeEndButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
 tradeEndButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 tradeEndButton.Text = "End Trade"
