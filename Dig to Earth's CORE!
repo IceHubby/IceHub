@@ -28,43 +28,27 @@ local function debugLog(message)
     end
 end
 
--- === GET VALID PET NAMES ===
+-- === GET VALID PET NAMES FROM ALL EGGS (OPTIMIZED) ===
+local cachedPets = nil
 local function getValidPets()
-    debugLog("Fetching valid pets from ReplicatedStorage.Pets")
-    local petsFolder = ReplicatedStorage:WaitForChild("Pets", 10)
-    if not petsFolder then
-        debugLog("Error: Pets folder not found in ReplicatedStorage after 10 seconds")
-        return {}
-    end
-
-    local validPetSet = {}
-    local validPets = {}
-    local eggCount = 0
-
+    if cachedPets then return cachedPets end
+    local folder = ReplicatedStorage:FindFirstChild("Pets")
+    if not folder then return {} end
+    local seen, pets = {}, {}
     for i = 1, 50 do
-        local egg = petsFolder:FindFirstChild("Egg" .. i)
+        local egg = folder:FindFirstChild("Egg" .. i)
         if egg then
-            eggCount = eggCount + 1
-            debugLog("Found Egg" .. i .. " with " .. #egg:GetChildren() .. " pets")
-            for _, pet in ipairs(egg:GetChildren()) do
-                local petName = pet.Name
-                debugLog("Found pet in Egg" .. i .. ": " .. petName)
-                if not validPetSet[petName] then
-                    validPetSet[petName] = true
-                    table.insert(validPets, petName)
-                    debugLog("Added valid pet: " .. petName)
+            for _, p in ipairs(egg:GetChildren()) do
+                local name = p.Name
+                if not seen[name] then
+                    seen[name] = true
+                    pets[#pets + 1] = name
                 end
             end
-        else
-            debugLog("Egg" .. i .. " not found")
         end
     end
-
-    if eggCount == 0 then
-        debugLog("Warning: No Egg folders (Egg1 to Egg50) found in Pets")
-    end
-    debugLog("Found " .. #validPets .. " unique valid pets")
-    return validPets
+    cachedPets = pets
+    return pets
 end
 
 -- === GET VALID PET NAMES FROM ALL FOLDERS (OPTIMIZED) ===
