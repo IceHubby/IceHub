@@ -80,25 +80,14 @@ end
 
 -- === GET VALID PLAYER NAMES FROM ALL PLAYERS (OPTIMIZED) ===
 local function getValidPlayers()
-    local playerFolder = Players
-    if not playerFolder then
-        warn("Error: Player folder not found in Game after 10 seconds")
-        return {}
-    end
-
     local validPlayerSet = {}
     local validPlayers = {}
 
-    for _, folder in ipairs(playerFolder:GetChildren()) do
-        if folder:IsA("Folder") then
-            local players = folder:GetChildren()
-            for i = 1, #players do
-                local playerName = players[i].Name
-                if not validPlayerSet[petName] then
-                    validPlayerSet[petName] = true
-                    validPlayers[#validPlayers + 1] = playerName
-                end
-            end
+    for _, player in ipairs(Players:GetPlayers()) do
+        local playerName = player.Name
+        if not validPlayerSet[playerName] then
+            validPlayerSet[playerName] = true
+            validPlayers[#validPlayers + 1] = playerName
         end
     end
 
