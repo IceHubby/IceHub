@@ -865,6 +865,13 @@ tradeInput:GetPropertyChangedSignal("Text"):Connect(function()
     PlayerUpdateSuggestions(tradeInput.Text)
 end)
 
+tradeEndButton.MouseButton1Click:Connect(function()
+
+end)
+
+tradeConfirmButton.MouseButton1Click:Connect(function()
+end)
+
 tradesubmitButton.MouseButton1Click:Connect(function()
     local currentTime = tick()
     if currentTime - lastUsed < COOLDOWN_TIME then
