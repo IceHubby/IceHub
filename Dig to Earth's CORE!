@@ -496,7 +496,7 @@ local function startCollectAllTreasure()
             infTreasureButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
             feedbackLabel.Text = "Treasure collection stopped."
         end
-    end)
+    end)()
 end
 
 infTreasureButton.MouseButton1Click:Connect(function()
