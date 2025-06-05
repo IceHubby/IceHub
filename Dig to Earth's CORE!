@@ -797,30 +797,12 @@ uiListLayout.Parent = tradeSuggestionFrame
 
 local tradesubmitButton = Instance.new("TextButton")
 tradesubmitButton.Size = UDim2.new(0, 80, 0, 40)
-tradesubmitButton.Position = UDim2.new(0.5, -45, 0, 235)
+tradesubmitButton.Position = UDim2.new(0.5, -45, 0, 185)
 tradesubmitButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
 tradesubmitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 tradesubmitButton.Text = "Trade Player"
 tradesubmitButton.Parent = tradeContent
 makeButtonCircular(tradesubmitButton)
-
-local tradeEndButton = Instance.new("TextButton")
-tradeEndButton.Size = UDim2.new(0, 80, 0, 40)
-tradeEndButton.Position = UDim2.new(0.5, -140, 0, 235)
-tradeEndButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-tradeEndButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-tradeEndButton.Text = "End Trade"
-tradeEndButton.Parent = tradeContent
-makeButtonCircular(tradeEndButton)
-
-local tradeConfirmButton = Instance.new("TextButton")
-tradeConfirmButton.Size = UDim2.new(0, 80, 0, 40)
-tradeConfirmButton.Position = UDim2.new(0.5, 50, 0, 235)
-tradeConfirmButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-tradeConfirmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-tradeConfirmButton.Text = "Confirm Trade"
-tradeConfirmButton.Parent = tradeContent
-makeButtonCircular(tradeConfirmButton)
 
 local tradingfeedbackLabel = Instance.new("TextLabel")
 tradingfeedbackLabel.Size = UDim2.new(0, 280, 0, 40)
@@ -863,20 +845,6 @@ end
 
 tradeInput:GetPropertyChangedSignal("Text"):Connect(function()
     PlayerUpdateSuggestions(tradeInput.Text)
-end)
-
-tradeEndButton.MouseButton1Click:Connect(function()
-local args = {
-	game:GetService("Players"):WaitForChild(player.name)
-}
-game:GetService("ReplicatedStorage"):WaitForChild("TradeRemotes"):WaitForChild("TradeEndEvent"):FireServer(unpack(args))
-end)
-
-tradeConfirmButton.MouseButton1Click:Connect(function()
-local args = {
-	true
-}
-game:GetService("ReplicatedStorage"):WaitForChild("TradeRemotes"):WaitForChild("TradeReadyEvent"):FireServer(unpack(args))
 end)
 
 tradesubmitButton.MouseButton1Click:Connect(function()
