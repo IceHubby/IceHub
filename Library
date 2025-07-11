@@ -1,0 +1,1428 @@
+--!strict
+-- IcehubGUI Library
+-- Version: 2.0
+-- This library provides functions to create advanced GUI elements with a consistent
+-- color scheme and styling, inspired by the provided text art and properties.
+-- Designed for use in Roblox environments.
+
+local IcehubGUI = {}
+
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- Core Color Scheme and Defaults
+local PRIMARY_COLOR = Color3.fromRGB(26, 57, 79)
+local TEXT_COLOR = Color3.fromRGB(176, 176, 176)
+local BORDER_COLOR_DEFAULT = Color3.fromRGB(0, 0, 0)
+local ACCENT_COLOR = Color3.fromRGB(40, 90, 120) -- A slightly lighter shade for interactions
+local DANGER_COLOR = Color3.fromRGB(200, 50, 50) -- For close buttons
+local SUCCESS_COLOR = Color3.fromRGB(50, 200, 50) -- For notifications
+local INFO_COLOR = Color3.fromRGB(50, 150, 200) -- For notifications
+
+-- Default ImageLabel properties for non-scrolling frames (as per user's original request)
+local DEFAULT_FRAME_IMAGE = "rbxassetid://3570695787"
+local DEFAULT_FRAME_IMAGE_COLOR = PRIMARY_COLOR
+local DEFAULT_FRAME_SCALE_TYPE = Enum.ScaleType.Slice
+local DEFAULT_FRAME_SLICE_CENTER = Rect.new(100, 100, 100, 100)
+local DEFAULT_FRAME_SLICE_SCALE = 0.200
+
+-- Configuration for the main GUI window
+IcehubGUI.MainGuiConfig = {
+    -- Default keybind for minimizing the GUI (RightControl)
+    MinimizeKeybind = Enum.KeyCode.RightControl,
+    -- Default position for the main GUI frame
+    DefaultPosition = UDim2.new(0.347738683, 0, 0.148527533, 0),
+    -- Default size for the main GUI frame
+    DefaultSize = UDim2.new(0, 533, 0, 453),
+    -- Default position for the minimized GUI icon
+    MinimizedPosition = UDim2.new(0.01, 0, 0.95, 0), -- Bottom-left corner
+    -- Default size for the minimized GUI icon
+    MinimizedSize = UDim2.new(0, 100, 0, 25),
+}
+
+-- Private helper functions (not exposed in the IcehubGUI table)
+
+--- Creates a basic UIListLayout and applies it to a container.
+-- @param container GuiObject The GUI object to apply the layout to.
+-- @param padding UDim The padding between items.
+-- @param horizontalAlignment Enum.HorizontalAlignment The horizontal alignment of items.
+-- @param verticalAlignment Enum.VerticalAlignment The vertical alignment of items.
+-- @param fillDirection Enum.FillDirection The direction items fill.
+-- @param sortOrder Enum.SortOrder The order items are sorted.
+local function createLayout(
+    container: GuiObject,
+    padding: UDim,
+    horizontalAlignment: Enum.HorizontalAlignment,
+    verticalAlignment: Enum.VerticalAlignment,
+    fillDirection: Enum.FillDirection,
+    sortOrder: Enum.SortOrder
+): UIListLayout
+    local layout = Instance.new("UIListLayout")
+    layout.Parent = container
+    layout.Padding = padding
+    layout.HorizontalAlignment = horizontalAlignment
+    layout.VerticalAlignment = verticalAlignment
+    layout.FillDirection = fillDirection
+    layout.SortOrder = sortOrder
+    return layout
+end
+
+--- Applies common button styling.
+-- @param button GuiButton The button to style.
+-- @param size UDim2 The size of the button.
+-- @param text string The text of the button.
+-- @param textColor Color3 The color of the text.
+-- @param textSize number The size of the text.
+-- @param font Enum.Font The font of the text.
+-- @param bgColor Color3 The background color of the button.
+-- @param hoverColor Color3 The color on hover.
+local function applyButtonStyling(
+    button: GuiButton,
+    size: UDim2,
+    text: string,
+    textColor: Color3,
+    textSize: number,
+    font: Enum.Font,
+    bgColor: Color3,
+    hoverColor: Color3
+)
+    button.Size = size
+    button.BackgroundColor3 = bgColor
+    button.BackgroundTransparency = 0
+    button.BorderColor3 = BORDER_COLOR_DEFAULT
+    button.BorderSizePixel = 0
+    button.Text = text
+    button.TextColor3 = textColor
+    button.TextSize = textSize
+    button.Font = font
+    button.TextXAlignment = Enum.TextXAlignment.Center
+    button.TextYAlignment = Enum.TextYAlignment.Center
+    button.AutoButtonColor = false -- Disable default Roblox button color changes
+
+    -- Rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = button
+
+    -- Hover effect
+    local defaultColor = bgColor
+    local hoverTweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local hoverTween = TweenService:Create(button, hoverTweenInfo, { BackgroundColor3 = hoverColor })
+    local unhoverTween = TweenService:Create(button, hoverTweenInfo, { BackgroundColor3 = defaultColor })
+
+    button.MouseEnter:Connect(function()
+        hoverTween:Play()
+    end)
+    button.MouseLeave:Connect(function()
+        unhoverTween:Play()
+    end)
+end
+
+--- Creates a simple message box (alternative to alert()).
+-- @param parent Instance The parent for the message box.
+-- @param title string The title of the message.
+-- @param message string The message content.
+-- @param duration number How long the message box stays visible (in seconds).
+-- @param bgColor Color3 The background color of the message box.
+local function createMessageBox(
+    parent: Instance,
+    title: string,
+    message: string,
+    duration: number,
+    bgColor: Color3
+)
+    local box = Instance.new("Frame")
+    box.Name = "MessageBox"
+    box.Size = UDim2.new(0, 300, 0, 150)
+    box.Position = UDim2.new(0.5, -150, 0.5, -75) -- Centered
+    box.BackgroundColor3 = bgColor
+    box.BorderColor3 = BORDER_COLOR_DEFAULT
+    box.BorderSizePixel = 1
+    box.ZIndex = 10 -- Ensure it's on top
+    box.Parent = parent
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, 0, 0, 30)
+    titleLabel.Position = UDim2.new(0, 0, 0, 0)
+    titleLabel.BackgroundColor3 = PRIMARY_COLOR
+    titleLabel.TextColor3 = TEXT_COLOR
+    titleLabel.Text = title
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.TextSize = 18
+    titleLabel.TextWrapped = true
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    titleLabel.TextYAlignment = Enum.TextYAlignment.Center
+    titleLabel.Parent = box
+
+    local messageLabel = Instance.new("TextLabel")
+    messageLabel.Name = "Message"
+    messageLabel.Size = UDim2.new(1, -20, 1, -50)
+    messageLabel.Position = UDim2.new(0, 10, 0, 40)
+    messageLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    messageLabel.BackgroundTransparency = 1
+    messageLabel.TextColor3 = TEXT_COLOR
+    messageLabel.Text = message
+    messageLabel.Font = Enum.Font.SourceSans
+    messageLabel.TextSize = 16
+    messageLabel.TextWrapped = true
+    messageLabel.TextXAlignment = Enum.TextXAlignment.Center
+    messageLabel.TextYAlignment = Enum.TextYAlignment.Center
+    messageLabel.Parent = box
+
+    local closeButton = IcehubGUI.createButton(
+        box,
+        "Close",
+        UDim2.new(0.5, -40, 1, -35),
+        UDim2.new(0, 80, 0, 25),
+        function()
+            box:Destroy()
+        end,
+        DANGER_COLOR
+    )
+    closeButton.ZIndex = 11
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = box
+
+    -- Auto-dismiss
+    if duration > 0 then
+        task.delay(duration, function()
+            if box and box.Parent then
+                box:Destroy()
+            end
+        end)
+    end
+end
+
+-- Public API functions
+
+--- Creates a new ScreenGui instance.
+-- @param parent Instance The parent of the ScreenGui (e.g., game.Players.LocalPlayer.PlayerGui).
+-- @return ScreenGui The created ScreenGui instance.
+function IcehubGUI.createScreenGui(parent: Instance): ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "IcehubScreenGui"
+    screenGui.Parent = parent
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling -- Important for z-ordering
+    return screenGui
+end
+
+--- Creates a main GUI frame that is draggable, minimizable, and closable.
+-- This function creates the primary window for your GUI.
+-- @param screenGui ScreenGui The ScreenGui instance to parent the main frame to.
+-- @return ImageLabel The created main GUI frame.
+function IcehubGUI.createMainFrame(screenGui: ScreenGui): ImageLabel
+    local mainFrame = IcehubGUI.createContainer(
+        screenGui,
+        false, -- Not a scrolling frame
+        "MainFrame",
+        IcehubGUI.MainGuiConfig.DefaultPosition,
+        IcehubGUI.MainGuiConfig.DefaultSize
+    )
+    mainFrame.ClipsDescendants = true -- Important for content not to overflow
+
+    -- Title Bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.BackgroundColor3 = ACCENT_COLOR
+    titleBar.BorderColor3 = BORDER_COLOR_DEFAULT
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+
+    local titleLabel = IcehubGUI.createCenteredLabel(
+        titleBar,
+        "ICEHUB",
+        UDim2.new(0, 0, 0, 0),
+        UDim2.new(1, -60, 1, 0), -- Make space for buttons
+        Enum.Font.Fantasy,
+        TEXT_COLOR,
+        24
+    )
+    titleLabel.Name = "TitleLabel"
+
+    -- Draggable functionality
+    local dragging = false
+    local dragStartPos = Vector2.zero
+    local frameStartPos = UDim2.zero
+
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStartPos = UserInputService:GetMouseLocation()
+            frameStartPos = mainFrame.Position
+            UserInputService.MouseIconEnabled = false -- Hide default mouse icon during drag
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = UserInputService:GetMouseLocation() - dragStartPos
+            mainFrame.Position = UDim2.new(
+                frameStartPos.X.Scale,
+                frameStartPos.X.Offset + delta.X,
+                frameStartPos.Y.Scale,
+                frameStartPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+            UserInputService.MouseIconEnabled = true
+        end
+    end)
+
+    -- Close Button
+    local closeButton = IcehubGUI.createButton(
+        titleBar,
+        "X",
+        UDim2.new(1, -25, 0.5, -10),
+        UDim2.new(0, 20, 0, 20),
+        function()
+            mainFrame:Destroy()
+            if mainFrame:GetAttribute("MinimizedIcon") then
+                mainFrame:GetAttribute("MinimizedIcon"):Destroy()
+            end
+        end,
+        DANGER_COLOR,
+        Color3.fromRGB(255, 0, 0) -- Brighter red on hover
+    )
+    closeButton.Name = "CloseButton"
+    closeButton.TextSize = 16
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.ZIndex = titleBar.ZIndex + 1 -- Ensure buttons are on top of title bar
+
+    -- Minimize Button
+    local minimizedIcon: TextLabel? = nil -- To store the minimized icon reference
+
+    local minimizeButton = IcehubGUI.createButton(
+        titleBar,
+        "_",
+        UDim2.new(1, -50, 0.5, -10),
+        UDim2.new(0, 20, 0, 20),
+        function()
+            if mainFrame.Visible then
+                -- Minimize
+                mainFrame.Visible = false
+                if not minimizedIcon then
+                    minimizedIcon = Instance.new("TextLabel")
+                    minimizedIcon.Name = "MinimizedIcehub"
+                    minimizedIcon.Parent = screenGui
+                    minimizedIcon.Size = IcehubGUI.MainGuiConfig.MinimizedSize
+                    minimizedIcon.Position = IcehubGUI.MainGuiConfig.MinimizedPosition
+                    minimizedIcon.BackgroundColor3 = PRIMARY_COLOR
+                    minimizedIcon.BackgroundTransparency = 0.5
+                    minimizedIcon.BorderColor3 = BORDER_COLOR_DEFAULT
+                    minimizedIcon.BorderSizePixel = 0
+                    minimizedIcon.Text = "ICEHUB"
+                    minimizedIcon.TextColor3 = TEXT_COLOR
+                    minimizedIcon.TextSize = 18
+                    minimizedIcon.Font = Enum.Font.Fantasy
+                    minimizedIcon.TextXAlignment = Enum.TextXAlignment.Center
+                    minimizedIcon.TextYAlignment = Enum.TextYAlignment.Center
+                    minimizedIcon.ZIndex = mainFrame.ZIndex -- Same ZIndex as main frame
+
+                    local corner = Instance.new("UICorner")
+                    corner.CornerRadius = UDim.new(0, 10)
+                    corner.Parent = minimizedIcon
+
+                    minimizedIcon.MouseButton1Click:Connect(function()
+                        if not mainFrame.Visible then
+                            mainFrame.Visible = true
+                            if minimizedIcon then
+                                minimizedIcon.Visible = false
+                            end
+                        end
+                    end)
+                    mainFrame:SetAttribute("MinimizedIcon", minimizedIcon) -- Store reference
+                end
+                if minimizedIcon then
+                    minimizedIcon.Visible = true
+                end
+            end
+        end,
+        ACCENT_COLOR,
+        Color3.fromRGB(60, 140, 180) -- Lighter blue on hover
+    )
+    minimizeButton.Name = "MinimizeButton"
+    minimizeButton.TextSize = 16
+    minimizeButton.Font = Enum.Font.SourceSansBold
+    minimizeButton.ZIndex = titleBar.ZIndex + 1
+
+    -- Keybind for minimizing
+    UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+        if not gameProcessedEvent and input.KeyCode == IcehubGUI.MainGuiConfig.MinimizeKeybind then
+            minimizeButton.MouseButton1Click:Fire() -- Simulate click
+        end
+    end)
+
+    return mainFrame
+end
+
+--- Creates a container frame, which can be either a normal ImageLabel or a ScrollingFrame.
+-- @param parent Instance The parent of the container.
+-- @param isScrolling boolean If true, creates a ScrollingFrame; otherwise, an ImageLabel.
+-- @param name string The name of the container.
+-- @param position UDim2 The position of the container.
+-- @param size UDim2 The size of the container.
+-- @return GuiObject The created container (ImageLabel or ScrollingFrame).
+function IcehubGUI.createContainer(
+    parent: Instance,
+    isScrolling: boolean,
+    name: string,
+    position: UDim2,
+    size: UDim2
+): GuiObject
+    local container: GuiObject
+
+    if isScrolling then
+        container = Instance.new("ScrollingFrame")
+        local scrollingFrame = container as ScrollingFrame
+        scrollingFrame.Active = true
+        scrollingFrame.CanvasPosition = Vector2.new(0, 0) -- Default to top
+        scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0) -- Will be updated by layout
+        scrollingFrame.ScrollBarThickness = 6
+        scrollingFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    else
+        container = Instance.new("ImageLabel")
+        local imageLabel = container as ImageLabel
+        imageLabel.Image = DEFAULT_FRAME_IMAGE
+        imageLabel.ImageColor3 = DEFAULT_FRAME_IMAGE_COLOR
+        imageLabel.ScaleType = DEFAULT_FRAME_SCALE_TYPE
+        imageLabel.SliceCenter = DEFAULT_FRAME_SLICE_CENTER
+        imageLabel.SliceScale = DEFAULT_FRAME_SLICE_SCALE
+        imageLabel.BackgroundTransparency = 1.000 -- Original request had transparency for frame
+    end
+
+    container.Name = name
+    container.Parent = parent
+    container.BackgroundColor3 = PRIMARY_COLOR
+    container.BorderColor3 = PRIMARY_COLOR -- Use primary color for frame border
+    container.BorderSizePixel = 0
+    container.Position = position
+    container.Size = size
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = container
+
+    -- Apply UIListLayout for automatic arrangement
+    createLayout(
+        container,
+        UDim.new(0, 5), -- Padding between elements
+        Enum.HorizontalAlignment.Center,
+        Enum.VerticalAlignment.Top,
+        Enum.FillDirection.Vertical,
+        Enum.SortOrder.LayoutOrder
+    )
+
+    return container
+end
+
+--- Creates a new TextLabel with the Icehub style.
+-- @param parent Instance The parent of the TextLabel.
+-- @param text string The text content of the TextLabel.
+-- @param position UDim2 The position of the TextLabel.
+-- @param size UDim2 The size of the TextLabel.
+-- @param font Enum.Font The font of the text.
+-- @param textColor Color3 The color of the text.
+-- @param textSize number The size of the text.
+-- @return TextLabel The created TextLabel instance.
+function IcehubGUI.createTextLabel(
+    parent: Instance,
+    text: string,
+    position: UDim2,
+    size: UDim2,
+    font: Enum.Font,
+    textColor: Color3,
+    textSize: number
+): TextLabel
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Parent = parent
+    textLabel.BackgroundColor3 = PRIMARY_COLOR
+    textLabel.BorderColor3 = BORDER_COLOR_DEFAULT
+    textLabel.BorderSizePixel = 0
+    textLabel.Position = position
+    textLabel.Size = size
+    textLabel.Font = font
+    textLabel.Text = text
+    textLabel.TextColor3 = textColor
+    textLabel.TextSize = textSize
+    textLabel.TextWrapped = true
+    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+    textLabel.TextYAlignment = Enum.TextYAlignment.Center
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = textLabel
+
+    return textLabel
+end
+
+--- Creates a centered TextLabel.
+-- @param parent Instance The parent of the TextLabel.
+-- @param text string The text content.
+-- @param position UDim2 The position.
+-- @param size UDim2 The size.
+-- @param font Enum.Font The font.
+-- @param textColor Color3 The text color.
+-- @param textSize number The text size.
+-- @return TextLabel The created TextLabel.
+function IcehubGUI.createCenteredLabel(
+    parent: Instance,
+    text: string,
+    position: UDim2,
+    size: UDim2,
+    font: Enum.Font,
+    textColor: Color3,
+    textSize: number
+): TextLabel
+    local label = IcehubGUI.createTextLabel(parent, text, position, size, font, textColor, textSize)
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    return label
+end
+
+--- Creates a styled button.
+-- @param parent Instance The parent of the button.
+-- @param text string The text on the button.
+-- @param position UDim2 The position of the button.
+-- @param size UDim2 The size of the button.
+-- @param onClick function The function to call when the button is clicked.
+-- @param bgColor Color3 The background color of the button (defaults to PRIMARY_COLOR).
+-- @param hoverColor Color3 The color when hovered (defaults to ACCENT_COLOR).
+-- @return TextButton The created button.
+function IcehubGUI.createButton(
+    parent: Instance,
+    text: string,
+    position: UDim2,
+    size: UDim2,
+    onClick: (button: TextButton) -> (),
+    bgColor: Color3?,
+    hoverColor: Color3?
+): TextButton
+    local button = Instance.new("TextButton")
+    button.Parent = parent
+    button.Position = position
+    applyButtonStyling(
+        button,
+        size,
+        text,
+        TEXT_COLOR,
+        18,
+        Enum.Font.SourceSans,
+        bgColor or PRIMARY_COLOR,
+        hoverColor or ACCENT_COLOR
+    )
+
+    button.MouseButton1Click:Connect(function()
+        onClick(button)
+    end)
+
+    return button
+end
+
+--- Creates a tab system within a parent frame.
+-- @param parentFrame GuiObject The frame where tabs will be displayed (e.g., the main GUI frame).
+-- @param tabContentFrame GuiObject The frame where tab content will be displayed. This should be positioned below the tab buttons.
+-- @return table A table with functions to add tabs.
+function IcehubGUI.createTabs(parentFrame: GuiObject, tabContentFrame: GuiObject)
+    local tabButtonsContainer = Instance.new("Frame")
+    tabButtonsContainer.Name = "TabButtonsContainer"
+    tabButtonsContainer.Size = UDim2.new(1, 0, 0, 30) -- Height for tab buttons
+    tabButtonsContainer.Position = UDim2.new(0, 0, 0, 30) -- Below title bar
+    tabButtonsContainer.BackgroundColor3 = PRIMARY_COLOR
+    tabButtonsContainer.BackgroundTransparency = 1
+    tabButtonsContainer.Parent = parentFrame
+
+    local tabLayout = createLayout(
+        tabButtonsContainer,
+        UDim.new(0, 5),
+        Enum.HorizontalAlignment.Left,
+        Enum.VerticalAlignment.Center,
+        Enum.FillDirection.Horizontal,
+        Enum.SortOrder.LayoutOrder
+    )
+
+    local tabs = {}
+    local currentActiveTab: Frame? = nil
+    local currentActiveButton: TextButton? = nil
+
+    --- Adds a new tab.
+    -- @param tabName string The name of the tab (displayed on the button).
+    -- @return GuiObject The content frame for this tab. Add your UI elements here.
+    function tabs.addTab(tabName: string): GuiObject
+        local tabContent = IcehubGUI.createContainer(
+            tabContentFrame,
+            true, -- Tabs can have scrolling content
+            tabName .. "TabContent",
+            UDim2.new(0, 0, 0, 0),
+            UDim2.new(1, 0, 1, 0)
+        )
+        tabContent.Visible = false -- Hidden by default
+
+        local tabButton = IcehubGUI.createButton(
+            tabButtonsContainer,
+            tabName,
+            UDim2.new(0, 0, 0, 0), -- Position handled by layout
+            UDim2.new(0, 100, 1, 0), -- Default button size
+            function(btn)
+                if currentActiveTab then
+                    currentActiveTab.Visible = false
+                    if currentActiveButton then
+                        applyButtonStyling(
+                            currentActiveButton,
+                            currentActiveButton.Size,
+                            currentActiveButton.Text,
+                            TEXT_COLOR,
+                            18,
+                            Enum.Font.SourceSans,
+                            PRIMARY_COLOR,
+                            ACCENT_COLOR
+                        )
+                    end
+                end
+                tabContent.Visible = true
+                applyButtonStyling(
+                    btn,
+                    btn.Size,
+                    btn.Text,
+                    TEXT_COLOR,
+                    18,
+                    Enum.Font.SourceSans,
+                    ACCENT_COLOR,
+                    ACCENT_COLOR -- Stay highlighted
+                )
+                currentActiveTab = tabContent
+                currentActiveButton = btn
+            end
+        )
+        tabButton.Name = tabName .. "TabButton"
+
+        -- Automatically activate the first tab added
+        if not currentActiveTab then
+            tabButton.MouseButton1Click:Fire()
+        end
+
+        return tabContent
+    end
+
+    return tabs
+end
+
+--- Creates a collapsible section within a parent.
+-- @param parent GuiObject The parent container for the section.
+-- @param title string The title of the section.
+-- @param defaultCollapsed boolean Whether the section is collapsed by default.
+-- @return GuiObject The content frame of the section. Add your UI elements here.
+function IcehubGUI.createSection(parent: GuiObject, title: string, defaultCollapsed: boolean): GuiObject
+    local sectionContainer = Instance.new("Frame")
+    sectionContainer.Name = title .. "Section"
+    sectionContainer.Size = UDim2.new(1, -10, 0, 30) -- Initial size for header
+    sectionContainer.Position = UDim2.new(0.5, -sectionContainer.Size.X.Offset / 2, 0, 0) -- Centered horizontally
+    sectionContainer.BackgroundColor3 = PRIMARY_COLOR
+    sectionContainer.BackgroundTransparency = 0.5
+    sectionContainer.BorderColor3 = BORDER_COLOR_DEFAULT
+    sectionContainer.BorderSizePixel = 0
+    sectionContainer.Parent = parent
+    sectionContainer.ClipsDescendants = true
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = sectionContainer
+
+    local headerFrame = Instance.new("Frame")
+    headerFrame.Name = "Header"
+    headerFrame.Size = UDim2.new(1, 0, 0, 30)
+    headerFrame.BackgroundColor3 = ACCENT_COLOR
+    headerFrame.BorderColor3 = BORDER_COLOR_DEFAULT
+    headerFrame.BorderSizePixel = 0
+    headerFrame.Parent = sectionContainer
+
+    local titleLabel = IcehubGUI.createTextLabel(
+        headerFrame,
+        title,
+        UDim2.new(0, 5, 0, 0),
+        UDim2.new(1, -30, 1, 0),
+        Enum.Font.SourceSansBold,
+        TEXT_COLOR,
+        18
+    )
+    titleLabel.Name = "SectionTitle"
+    titleLabel.BackgroundTransparency = 1
+
+    local arrowButton = Instance.new("TextButton")
+    arrowButton.Name = "ArrowButton"
+    arrowButton.Size = UDim2.new(0, 20, 0, 20)
+    arrowButton.Position = UDim2.new(1, -25, 0.5, -10)
+    arrowButton.BackgroundColor3 = ACCENT_COLOR
+    arrowButton.BackgroundTransparency = 1
+    arrowButton.TextColor3 = TEXT_COLOR
+    arrowButton.TextSize = 18
+    arrowButton.Font = Enum.Font.SourceSansBold
+    arrowButton.TextXAlignment = Enum.TextXAlignment.Center
+    arrowButton.TextYAlignment = Enum.TextYAlignment.Center
+    arrowButton.Parent = headerFrame
+
+    local contentFrame = IcehubGUI.createContainer(
+        sectionContainer,
+        true, -- Sections can have scrolling content
+        title .. "Content",
+        UDim2.new(0, 0, 0, 30), -- Below header
+        UDim2.new(1, 0, 0, 0) -- Height will be adjusted
+    )
+    contentFrame.BackgroundTransparency = 0.7 -- Slightly more transparent than main frame
+    contentFrame.BorderColor3 = PRIMARY_COLOR
+    contentFrame.BorderSizePixel = 1
+    contentFrame.ClipsDescendants = true
+
+    local isCollapsed = defaultCollapsed
+    local collapsedHeight = UDim2.new(1, -10, 0, 30)
+    local expandedHeight = UDim2.new(1, -10, 0, 200) -- Default expanded height, can be adjusted by content
+
+    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+    local function updateSectionState()
+        if isCollapsed then
+            arrowButton.Text = "▼" -- Down arrow
+            TweenService:Create(sectionContainer, tweenInfo, { Size = collapsedHeight }):Play()
+            contentFrame.Visible = false
+        else
+            arrowButton.Text = "▲" -- Up arrow
+            TweenService:Create(sectionContainer, tweenInfo, { Size = expandedHeight }):Play()
+            contentFrame.Visible = true
+        end
+    end
+
+    arrowButton.MouseButton1Click:Connect(function()
+        isCollapsed = not isCollapsed
+        updateSectionState()
+    end)
+
+    -- Initial state setup
+    updateSectionState()
+
+    -- Adjust content frame canvas size based on its children's size
+    contentFrame.ChildAdded:Connect(function()
+        RunService.Heartbeat:Wait() -- Wait a frame for layout to update
+        local contentHeight = contentFrame.UIListLayout.AbsoluteContentSize.Y
+        contentFrame.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
+        -- Adjust section container height if content exceeds default expanded height
+        if not isCollapsed and contentHeight + 30 > expandedHeight.Offset then
+            TweenService:Create(sectionContainer, tweenInfo, { Size = UDim2.new(1, -10, 0, contentHeight + 40) }):Play()
+        end
+    end)
+    contentFrame.ChildRemoved:Connect(function()
+        RunService.Heartbeat:Wait()
+        local contentHeight = contentFrame.UIListLayout.AbsoluteContentSize.Y
+        contentFrame.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
+        if not isCollapsed and contentHeight + 30 > expandedHeight.Offset then
+            TweenService:Create(sectionContainer, tweenInfo, { Size = UDim2.new(1, -10, 0, contentHeight + 40) }):Play()
+        end
+    end)
+
+    return contentFrame
+end
+
+--- Displays a notification.
+-- @param parent GuiObject The parent for the notification (e.g., ScreenGui).
+-- @param title string The title of the notification.
+-- @param message string The message content.
+-- @param duration number How long the notification stays visible (0 for indefinite, requires manual dismiss).
+-- @param type string "success", "error", "info", or nil for default.
+-- @return Frame The created notification frame.
+function IcehubGUI.showNotification(
+    parent: GuiObject,
+    title: string,
+    message: string,
+    duration: number,
+    notificationType: string?
+): Frame
+    local notificationsContainer = parent:FindFirstChild("NotificationsContainer")
+    if not notificationsContainer then
+        notificationsContainer = Instance.new("Frame")
+        notificationsContainer.Name = "NotificationsContainer"
+        notificationsContainer.Size = UDim2.new(0, 250, 1, 0)
+        notificationsContainer.Position = UDim2.new(1, -260, 0, 0) -- Bottom-right aligned
+        notificationsContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        notificationsContainer.BackgroundTransparency = 1
+        notificationsContainer.Parent = parent
+
+        createLayout(
+            notificationsContainer,
+            UDim.new(0, 10),
+            Enum.HorizontalAlignment.Right,
+            Enum.VerticalAlignment.Bottom,
+            Enum.FillDirection.Vertical,
+            Enum.SortOrder.LayoutOrder
+        )
+    end
+
+    local notification = Instance.new("Frame")
+    notification.Name = "Notification"
+    notification.Size = UDim2.new(1, 0, 0, 80)
+    notification.BackgroundColor3 = PRIMARY_COLOR
+    notification.BackgroundTransparency = 0.1
+    notification.BorderColor3 = BORDER_COLOR_DEFAULT
+    notification.BorderSizePixel = 1
+    notification.Parent = notificationsContainer
+    notification.LayoutOrder = os.time() -- For stacking
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = notification
+
+    local typeColor = PRIMARY_COLOR
+    local typeIcon = ""
+    if notificationType == "success" then
+        typeColor = SUCCESS_COLOR
+        typeIcon = "✔"
+    elseif notificationType == "error" then
+        typeColor = DANGER_COLOR
+        typeIcon = "✖"
+    elseif notificationType == "info" then
+        typeColor = INFO_COLOR
+        typeIcon = "ℹ"
+    end
+
+    local iconLabel = IcehubGUI.createCenteredLabel(
+        notification,
+        typeIcon,
+        UDim2.new(0, 5, 0.5, -15),
+        UDim2.new(0, 30, 0, 30),
+        Enum.Font.SourceSansBold,
+        typeColor,
+        24
+    )
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.ZIndex = 2 -- Ensure icon is visible
+
+    local titleLabel = IcehubGUI.createTextLabel(
+        notification,
+        title,
+        UDim2.new(0, 40, 0, 5),
+        UDim2.new(1, -60, 0, 20),
+        Enum.Font.SourceSansBold,
+        TEXT_COLOR,
+        16
+    )
+    titleLabel.BackgroundTransparency = 1
+
+    local messageLabel = IcehubGUI.createTextLabel(
+        notification,
+        message,
+        UDim2.new(0, 40, 0, 25),
+        UDim2.new(1, -60, 0, 50),
+        Enum.Font.SourceSans,
+        TEXT_COLOR,
+        14
+    )
+    messageLabel.BackgroundTransparency = 1
+    messageLabel.TextWrapped = true
+
+    local dismissButton = IcehubGUI.createButton(
+        notification,
+        "X",
+        UDim2.new(1, -25, 0, 5),
+        UDim2.new(0, 20, 0, 20),
+        function()
+            notification:Destroy()
+        end,
+        DANGER_COLOR,
+        Color3.fromRGB(255, 0, 0)
+    )
+    dismissButton.TextSize = 14
+    dismissButton.ZIndex = 2
+
+    if duration > 0 then
+        task.delay(duration, function()
+            if notification and notification.Parent then
+                notification:Destroy()
+            end
+        end)
+    end
+
+    return notification
+end
+
+--- Creates a visual color picker.
+-- @param parent GuiObject The parent for the color picker.
+-- @param position UDim2 The position of the color picker.
+-- @param size UDim2 The size of the color picker.
+-- @param onColorSelected function A callback function (color: Color3) -> () when a color is selected.
+-- @return Frame The color picker frame.
+function IcehubGUI.createColorPicker(
+    parent: GuiObject,
+    position: UDim2,
+    size: UDim2,
+    onColorSelected: (color: Color3) -> ()
+): Frame
+    local colorPickerFrame = Instance.new("Frame")
+    colorPickerFrame.Name = "ColorPicker"
+    colorPickerFrame.Size = size
+    colorPickerFrame.Position = position
+    colorPickerFrame.BackgroundColor3 = PRIMARY_COLOR
+    colorPickerFrame.BorderColor3 = BORDER_COLOR_DEFAULT
+    colorPickerFrame.BorderSizePixel = 1
+    colorPickerFrame.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = colorPickerFrame
+
+    local colorDisplay = Instance.new("Frame")
+    colorDisplay.Name = "SelectedColorDisplay"
+    colorDisplay.Size = UDim2.new(1, -20, 0, 30)
+    colorDisplay.Position = UDim2.new(0, 10, 0, 10)
+    colorDisplay.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- Default white
+    colorDisplay.BorderColor3 = BORDER_COLOR_DEFAULT
+    colorDisplay.BorderSizePixel = 1
+    colorDisplay.Parent = colorPickerFrame
+
+    local colorWheelArea = Instance.new("Frame")
+    colorWheelArea.Name = "ColorWheelArea"
+    colorWheelArea.Size = UDim2.new(1, -20, 1, -80)
+    colorWheelArea.Position = UDim2.new(0, 10, 0, 50)
+    colorWheelArea.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- Will be covered by gradients
+    colorWheelArea.BackgroundTransparency = 0.5
+    colorWheelArea.BorderColor3 = BORDER_COLOR_DEFAULT
+    colorWheelArea.BorderSizePixel = 1
+    colorWheelArea.Parent = colorPickerFrame
+
+    local corner2 = Instance.new("UICorner")
+    corner2.CornerRadius = UDim.new(0, 5)
+    corner2.Parent = colorWheelArea
+
+    -- Hue Gradient (Vertical)
+    local hueGradient = Instance.new("UIGradient")
+    hueGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+        ColorSequenceKeypoint.new(1/6, Color3.fromRGB(255, 255, 0)),
+        ColorSequenceKeypoint.new(2/6, Color3.fromRGB(0, 255, 0)),
+        ColorSequenceKeypoint.new(3/6, Color3.fromRGB(0, 255, 255)),
+        ColorSequenceKeypoint.new(4/6, Color3.fromRGB(0, 0, 255)),
+        ColorSequenceKeypoint.new(5/6, Color3.fromRGB(255, 0, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+    })
+    hueGradient.Rotation = 90 -- Vertical
+    hueGradient.Parent = colorWheelArea
+
+    -- Saturation/Value Gradient (Horizontal)
+    local svGradient = Instance.new("UIGradient")
+    svGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)), -- White
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)) -- Black
+    })
+    svGradient.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(1, 0)
+    })
+    svGradient.Rotation = 0 -- Horizontal
+    svGradient.Parent = colorWheelArea
+
+    local selector = Instance.new("ImageLabel")
+    selector.Name = "ColorSelector"
+    selector.Size = UDim2.new(0, 16, 0, 16)
+    selector.Image = "rbxassetid://2737637841" -- A simple circle image, or use a custom SVG if available
+    selector.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    selector.BackgroundTransparency = 1
+    selector.ZIndex = 2
+    selector.Parent = colorWheelArea
+
+    local draggingColor = false
+    local currentHue = 0.0 -- 0-1
+    local currentSaturation = 0.0 -- 0-1
+    local currentValue = 0.0 -- 0-1
+    local selectedColor = Color3.fromRGB(255, 255, 255)
+
+    local function updateColorFromSelector(x: number, y: number)
+        local absSize = colorWheelArea.AbsoluteSize
+        local relX = math.clamp(x / absSize.X, 0, 1)
+        local relY = math.clamp(y / absSize.Y, 0, 1)
+
+        -- This is a simplified HSV to RGB conversion for the picker.
+        -- Hue is based on Y position, Saturation/Value on X.
+        currentHue = relY
+        currentSaturation = relX
+        currentValue = 1 - relX -- Invert value for better visual mapping (white on left, black on right)
+
+        -- Convert HSV to RGB
+        local h = currentHue * 360
+        local s = currentSaturation
+        local v = currentValue
+
+        local c = v * s
+        local x_val = c * (1 - math.abs(math.fmod(h / 60, 2) - 1))
+        local m = v - c
+
+        local r, g, b = 0, 0, 0
+
+        if h >= 0 and h < 60 then
+            r, g, b = c, x_val, 0
+        elseif h >= 60 and h < 120 then
+            r, g, b = x_val, c, 0
+        elseif h >= 120 and h < 180 then
+            r, g, b = 0, c, x_val
+        elseif h >= 180 and h < 240 then
+            r, g, b = 0, x_val, c
+        elseif h >= 240 and h < 300 then
+            r, g, b = x_val, 0, c
+        else
+            r, g, b = c, 0, x_val
+        end
+
+        selectedColor = Color3.new(r + m, g + m, b + m)
+        colorDisplay.BackgroundColor3 = selectedColor
+        selector.Position = UDim2.new(relX, -selector.Size.X.Offset / 2, relY, -selector.Size.Y.Offset / 2)
+    end
+
+    colorWheelArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            draggingColor = true
+            local pos = UserInputService:GetMouseLocation() - colorWheelArea.AbsolutePosition
+            updateColorFromSelector(pos.X, pos.Y)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingColor and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local pos = UserInputService:GetMouseLocation() - colorWheelArea.AbsolutePosition
+            updateColorFromSelector(pos.X, pos.Y)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            draggingColor = false
+        end
+    end)
+
+    local selectButton = IcehubGUI.createButton(
+        colorPickerFrame,
+        "Select Color",
+        UDim2.new(0.5, -60, 1, -35),
+        UDim2.new(0, 120, 0, 25),
+        function()
+            onColorSelected(selectedColor)
+        end,
+        ACCENT_COLOR
+    )
+    selectButton.Name = "SelectColorButton"
+
+    return colorPickerFrame
+end
+
+--- Creates a dropdown (single selection).
+-- @param parent GuiObject The parent for the dropdown.
+-- @param position UDim2 The position of the dropdown.
+-- @param size UDim2 The size of the dropdown.
+-- @param placeholder string The placeholder text when no item is selected.
+-- @param options table A table of strings for dropdown options.
+-- @param onSelectionChanged function A callback (selectedText: string?, selectedIndex: number?) -> () when selection changes.
+-- @return Frame The dropdown frame.
+function IcehubGUI.createDropdown(
+    parent: GuiObject,
+    position: UDim2,
+    size: UDim2,
+    placeholder: string,
+    options: { string },
+    onSelectionChanged: (selectedText: string?, selectedIndex: number?) -> ()
+): Frame
+    local dropdownFrame = Instance.new("Frame")
+    dropdownFrame.Name = "Dropdown"
+    dropdownFrame.Size = size
+    dropdownFrame.Position = position
+    dropdownFrame.BackgroundColor3 = PRIMARY_COLOR
+    dropdownFrame.BorderColor3 = BORDER_COLOR_DEFAULT
+    dropdownFrame.BorderSizePixel = 1
+    dropdownFrame.Parent = parent
+    dropdownFrame.ClipsDescendants = true
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = dropdownFrame
+
+    local selectedTextLabel = IcehubGUI.createTextLabel(
+        dropdownFrame,
+        placeholder,
+        UDim2.new(0, 5, 0, 0),
+        UDim2.new(1, -30, 1, 0),
+        Enum.Font.SourceSans,
+        TEXT_COLOR,
+        16
+    )
+    selectedTextLabel.Name = "SelectedText"
+    selectedTextLabel.BackgroundTransparency = 1
+
+    local toggleButton = IcehubGUI.createButton(
+        dropdownFrame,
+        "▼",
+        UDim2.new(1, -25, 0.5, -10),
+        UDim2.new(0, 20, 0, 20),
+        function()
+            if optionsContainer.Visible then
+                optionsContainer.Visible = false
+                toggleButton.Text = "▼"
+                dropdownFrame.Size = size -- Collapse
+            else
+                optionsContainer.Visible = true
+                toggleButton.Text = "▲"
+                -- Expand dropdown to show all options
+                local numOptions = #options
+                local optionHeight = 25 -- Assuming 25px per option
+                local expandedHeight = size.Y.Offset + (numOptions * optionHeight) + 5 -- Add padding
+                dropdownFrame.Size = UDim2.new(size.X.Scale, size.X.Offset, 0, expandedHeight)
+            end
+        end,
+        ACCENT_COLOR,
+        Color3.fromRGB(60, 140, 180)
+    )
+    toggleButton.Name = "ToggleButton"
+    toggleButton.TextSize = 14
+
+    local optionsContainer = IcehubGUI.createContainer(
+        dropdownFrame,
+        true, -- Can scroll if many options
+        "OptionsContainer",
+        UDim2.new(0, 0, 1, 0), -- Below the selected text label
+        UDim2.new(1, 0, 0, 0) -- Height will be dynamic
+    )
+    optionsContainer.BackgroundTransparency = 0.8
+    optionsContainer.Visible = false
+    optionsContainer.ClipsDescendants = true
+
+    local currentSelection: string? = nil
+
+    local function updateSelected(text: string?, index: number?)
+        currentSelection = text
+        selectedTextLabel.Text = text or placeholder
+        optionsContainer.Visible = false
+        toggleButton.Text = "▼"
+        dropdownFrame.Size = size -- Collapse
+        onSelectionChanged(text, index)
+    end
+
+    for i, optionText in ipairs(options) do
+        local optionButton = IcehubGUI.createButton(
+            optionsContainer,
+            optionText,
+            UDim2.new(0, 0, 0, 0), -- Position handled by layout
+            UDim2.new(1, 0, 0, 25), -- Default option button size
+            function()
+                if currentSelection == optionText then
+                    updateSelected(nil, nil) -- Unselect
+                else
+                    updateSelected(optionText, i)
+                end
+            end,
+            PRIMARY_COLOR,
+            ACCENT_COLOR
+        )
+        optionButton.Name = "Option_" .. i
+        optionButton.TextSize = 14
+        optionButton.TextXAlignment = Enum.TextXAlignment.Left
+    end
+
+    -- Adjust options container canvas size
+    optionsContainer.ChildAdded:Connect(function()
+        RunService.Heartbeat:Wait()
+        local contentHeight = optionsContainer.UIListLayout.AbsoluteContentSize.Y
+        optionsContainer.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
+        optionsContainer.Size = UDim2.new(1, 0, 0, contentHeight) -- Make container fit options
+    end)
+
+    return dropdownFrame
+end
+
+--- Creates a toggle (sliding switch).
+-- @param parent GuiObject The parent for the toggle.
+-- @param position UDim2 The position of the toggle.
+-- @param size UDim2 The size of the toggle.
+-- @param defaultState boolean The initial state (true for on, false for off).
+-- @param onToggle function A callback (newState: boolean) -> () when the toggle state changes.
+-- @return Frame The toggle frame.
+function IcehubGUI.createToggle(
+    parent: GuiObject,
+    position: UDim2,
+    size: UDim2,
+    defaultState: boolean,
+    onToggle: (newState: boolean) -> ()
+): Frame
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Name = "Toggle"
+    toggleFrame.Size = size
+    toggleFrame.Position = position
+    toggleFrame.BackgroundColor3 = PRIMARY_COLOR
+    toggleFrame.BorderColor3 = BORDER_COLOR_DEFAULT
+    toggleFrame.BorderSizePixel = 1
+    toggleFrame.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, size.Y.Offset / 2) -- Make it pill-shaped
+    corner.Parent = toggleFrame
+
+    local slider = Instance.new("Frame")
+    slider.Name = "Slider"
+    slider.Size = UDim2.new(0, size.Y.Offset - 4, 0, size.Y.Offset - 4) -- Slightly smaller than height
+    slider.BackgroundColor3 = TEXT_COLOR
+    slider.BorderColor3 = BORDER_COLOR_DEFAULT
+    slider.BorderSizePixel = 0
+    slider.Parent = toggleFrame
+
+    local sliderCorner = Instance.new("UICorner")
+    sliderCorner.CornerRadius = UDim.new(0, slider.Size.X.Offset / 2) -- Make it circular
+    sliderCorner.Parent = slider
+
+    local currentState = defaultState
+    local onColor = SUCCESS_COLOR
+    local offColor = DANGER_COLOR
+    local tweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+    local function updateToggleVisual()
+        if currentState then
+            TweenService:Create(toggleFrame, tweenInfo, { BackgroundColor3 = onColor }):Play()
+            TweenService:Create(slider, tweenInfo, { Position = UDim2.new(1, -slider.Size.X.Offset - 2, 0, 2) }):Play()
+        else
+            TweenService:Create(toggleFrame, tweenInfo, { BackgroundColor3 = offColor }):Play()
+            TweenService:Create(slider, tweenInfo, { Position = UDim2.new(0, 2, 0, 2) }):Play()
+        end
+    end
+
+    toggleFrame.MouseButton1Click:Connect(function()
+        currentState = not currentState
+        updateToggleVisual()
+        onToggle(currentState)
+    end)
+
+    updateToggleVisual() -- Set initial visual state
+
+    return toggleFrame
+end
+
+--- Creates a text input box.
+-- @param parent GuiObject The parent for the input.
+-- @param position UDim2 The position of the input.
+-- @param size UDim2 The size of the input.
+-- @param placeholder string The placeholder text.
+-- @param textType Enum.TextXAlignment The text alignment (e.g., Enum.TextXAlignment.Left).
+-- @param keyboardType Enum.KeyboardType The keyboard type (e.g., Enum.KeyboardType.Default, Enum.KeyboardType.NumberPad).
+-- @param maxLength number The maximum length of the input text.
+-- @param onTextChanged function A callback (newText: string) -> () when text changes.
+-- @param onFocusLost function A callback (finalText: string, enterPressed: boolean) -> () when focus is lost.
+-- @return TextBox The created input box.
+function IcehubGUI.createInput(
+    parent: GuiObject,
+    position: UDim2,
+    size: UDim2,
+    placeholder: string,
+    textType: Enum.TextXAlignment,
+    keyboardType: Enum.KeyboardType,
+    maxLength: number,
+    onTextChanged: (newText: string) -> (),
+    onFocusLost: (finalText: string, enterPressed: boolean) -> ()
+): TextBox
+    local input = Instance.new("TextBox")
+    input.Name = "Input"
+    input.Size = size
+    input.Position = position
+    input.PlaceholderText = placeholder
+    input.Text = ""
+    input.TextColor3 = TEXT_COLOR
+    input.TextSize = 16
+    input.Font = Enum.Font.SourceSans
+    input.BackgroundColor3 = PRIMARY_COLOR
+    input.BackgroundTransparency = 0.5
+    input.BorderColor3 = BORDER_COLOR_DEFAULT
+    input.BorderSizePixel = 1
+    input.TextXAlignment = textType
+    input.KeyboardType = keyboardType
+    input.ClearTextOnFocus = false
+    input.Parent = parent
+    input.TextWrapped = true
+    input.MaxVisibleGraphemes = maxLength
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = input
+
+    input.Changed:Connect(function(property)
+        if property == "Text" then
+            onTextChanged(input.Text)
+        end
+    end)
+
+    input.FocusLost:Connect(function(enterPressed)
+        onFocusLost(input.Text, enterPressed)
+    end)
+
+    return input
+end
+
+--- Creates an input box with dropdown suggestions (autocomplete).
+-- @param parent GuiObject The parent for the input.
+-- @param position UDim2 The position of the input.
+-- @param size UDim2 The size of the input.
+-- @param placeholder string The placeholder text.
+-- @param getSuggestions function A function (currentText: string) -> { string } that returns a list of suggestions.
+-- @param onSuggestionSelected function A callback (selectedText: string) -> () when a suggestion is clicked.
+-- @return TextBox The created input box.
+function IcehubGUI.createAutocompleteInput(
+    parent: GuiObject,
+    position: UDim2,
+    size: UDim2,
+    placeholder: string,
+    getSuggestions: (currentText: string) -> { string },
+    onSuggestionSelected: (selectedText: string) -> ()
+): TextBox
+    local input = IcehubGUI.createInput(
+        parent,
+        position,
+        size,
+        placeholder,
+        Enum.TextXAlignment.Left,
+        Enum.KeyboardType.Default,
+        256, -- Max length
+        function(newText)
+            local suggestions = getSuggestions(newText)
+            suggestionsContainer.Visible = #suggestions > 0
+            for _, child in ipairs(suggestionsContainer:GetChildren()) do
+                if child:IsA("GuiObject") then
+                    child:Destroy()
+                end
+            end
+            for i, suggestionText in ipairs(suggestions) do
+                local suggestionButton = IcehubGUI.createButton(
+                    suggestionsContainer,
+                    suggestionText,
+                    UDim2.new(0, 0, 0, 0),
+                    UDim2.new(1, 0, 0, 25),
+                    function()
+                        input.Text = suggestionText
+                        suggestionsContainer.Visible = false
+                        onSuggestionSelected(suggestionText)
+                    end,
+                    PRIMARY_COLOR,
+                    ACCENT_COLOR
+                )
+                suggestionButton.TextSize = 14
+                suggestionButton.TextXAlignment = Enum.TextXAlignment.Left
+            end
+            -- Adjust suggestions container size
+            RunService.Heartbeat:Wait()
+            local contentHeight = suggestionsContainer.UIListLayout.AbsoluteContentSize.Y
+            suggestionsContainer.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
+            suggestionsContainer.Size = UDim2.new(1, 0, 0, math.min(contentHeight, 150)) -- Max height 150
+        end,
+        function(_, _)
+            -- Hide suggestions when focus is lost, but allow click to register first
+            task.delay(0.1, function()
+                if not input:IsFocused() then
+                    suggestionsContainer.Visible = false
+                end
+            end)
+        end
+    )
+    input.Name = "AutocompleteInput"
+
+    local suggestionsContainer = IcehubGUI.createContainer(
+        parent,
+        true, -- Scrolling for suggestions
+        "SuggestionsContainer",
+        UDim2.new(position.X.Scale, position.X.Offset, position.Y.Scale, position.Y.Offset + size.Y.Offset + 5),
+        UDim2.new(size.X.Scale, size.X.Offset, 0, 0) -- Initial height 0
+    )
+    suggestionsContainer.BackgroundTransparency = 0.8
+    suggestionsContainer.Visible = false
+    suggestionsContainer.ZIndex = input.ZIndex + 1 -- Ensure suggestions are on top
+    suggestionsContainer.ClipsDescendants = true
+
+    return input
+end
+
+--- Creates a multi-selection list.
+-- @param parent GuiObject The parent for the multi-selection list.
+-- @param position UDim2 The position of the list.
+-- @param size UDim2 The size of the list.
+-- @param options table A table of strings for the options.
+-- @param onSelectionChanged function A callback (selectedItems: { string }) -> () when selection changes.
+-- @return ScrollingFrame The multi-selection list frame.
+function IcehubGUI.createMultiSelection(
+    parent: GuiObject,
+    position: UDim2,
+    size: UDim2,
+    options: { string },
+    onSelectionChanged: (selectedItems: { string }) -> ()
+): ScrollingFrame
+    local multiSelectionFrame = IcehubGUI.createContainer(
+        parent,
+        true, -- Is a scrolling frame
+        "MultiSelection",
+        position,
+        size
+    )
+    multiSelectionFrame.BackgroundTransparency = 0.5
+
+    local selectedItems: { string } = {}
+    local optionButtons: { [string]: TextButton } = {}
+
+    local function updateSelection(item: string, isSelected: boolean)
+        if isSelected then
+            table.insert(selectedItems, item)
+            if optionButtons[item] then
+                optionButtons[item].BackgroundColor3 = ACCENT_COLOR
+            end
+        else
+            for i, v in ipairs(selectedItems) do
+                if v == item then
+                    table.remove(selectedItems, i)
+                    break
+                end
+            end
+            if optionButtons[item] then
+                optionButtons[item].BackgroundColor3 = PRIMARY_COLOR
+            end
+        end
+        onSelectionChanged(selectedItems)
+    end
+
+    for i, optionText in ipairs(options) do
+        local optionButton = IcehubGUI.createButton(
+            multiSelectionFrame,
+            optionText,
+            UDim2.new(0, 0, 0, 0),
+            UDim2.new(1, 0, 0, 25),
+            function(btn)
+                local isCurrentlySelected = false
+                for _, v in ipairs(selectedItems) do
+                    if v == optionText then
+                        isCurrentlySelected = true
+                        break
+                    end
+                end
+                updateSelection(optionText, not isCurrentlySelected)
+            end,
+            PRIMARY_COLOR,
+            ACCENT_COLOR
+        )
+        optionButton.TextSize = 14
+        optionButton.TextXAlignment = Enum.TextXAlignment.Left
+        optionButtons[optionText] = optionButton
+    end
+
+    -- Adjust canvas size
+    multiSelectionFrame.ChildAdded:Connect(function()
+        RunService.Heartbeat:Wait()
+        local contentHeight = multiSelectionFrame.UIListLayout.AbsoluteContentSize.Y
+        multiSelectionFrame.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
+    end)
+
+    return multiSelectionFrame
+end
+
+return IcehubGUI
